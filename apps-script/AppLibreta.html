@@ -9,14 +9,18 @@
       'aria-label': 'Buscar', oninput: function () { E.filtros.q = q.value; E.mostrar = 60; pintarLista(); } });
     var anio = h('select', { class: 'entrada', 'aria-label': 'Año', onchange: function () { E.anio = Number(anio.value); vistas.libreta(); } },
       ini.anios.map(function (a) { return h('option', { value: a, selected: a === E.anio }, 'Año ' + a); }));
-    var est = h('select', { class: 'entrada', 'aria-label': 'Estatus', onchange: function () { E.filtros.estatus = est.value; E.mostrar = 60; pintarLista(); } },
+    var est = h('select', { class: 'entrada', 'aria-label': 'Estatus', onchange: function () { E.filtros.estatus = est.value; E.mostrar = 60; guardarFiltros(t, { estatus: est.value }); pintarLista(); } },
       [['', 'Todos los estatus'], ['(activos)', 'Por atender (pendiente o en trámite)'], ['(vencidos)', 'Vencidos'], ['(mes)', 'De este mes'], ['(sin)', 'Sin estatus']]
         .concat(tiene('misAsuntos') ? [['(mios)', 'Turnados a mí']] : [])
+        .concat(def.numeroAuto ? [['(completar)', 'Por completar (números apartados)']] : [])
         .concat(ini.estatus.map(function (s) { return [s, s]; })).map(function (o) {
           return h('option', { value: o[0], selected: o[0] === E.filtros.estatus }, o[1]);
         }));
-    var acu = h('select', { class: 'entrada', 'aria-label': 'Acuse', onchange: function () { E.filtros.acuse = acu.value; E.mostrar = 60; pintarLista(); } },
+    var acu = h('select', { class: 'entrada', 'aria-label': 'Acuse', onchange: function () { E.filtros.acuse = acu.value; E.mostrar = 60; guardarFiltros(t, { acuse: acu.value }); pintarLista(); } },
       [['', 'Con y sin acuse'], ['SI', 'Con acuse'], ['NO', 'Sin acuse']].map(function (o) { return h('option', { value: o[0], selected: o[0] === E.filtros.acuse }, o[1]); }));
+    var ordSel = h('select', { class: 'entrada herr__orden', 'aria-label': 'Ordenar', onchange: function () {
+      var p = ordSel.value.split(':'); ponerOrden(p[0], p[1]);
+    } }, OPCIONES_ORDEN.map(function (o) { var v = o[0] + ':' + o[1]; return h('option', { value: v, selected: v === ordenActual().campo + ':' + ordenActual().dir }, o[2]); }));
     // Selección para cambiar varios a la vez (solo quien captura y si el servidor ya sabe hacerlo)
     if (!E.sel || E.sel.clave !== t + E.anio) E.sel = { clave: t + E.anio, activo: false, ids: {} };
     var puedeLote = puedeCapturar(t) && tiene('guardarLote');
@@ -25,16 +29,18 @@
       botonSel.classList.toggle('btn--prim', E.sel.activo); botonSel.setAttribute('aria-pressed', E.sel.activo ? 'true' : 'false');
       pintarLista();
     } }, icono('check'), 'Seleccionar') : null;
-    refsReg = { res: h('div'), indicadores: h('div', { class: 'lib__ind' }), est: est, acu: acu, q: q, lote: h('div'), botonSel: botonSel };
+    refsReg = { res: h('div'), indicadores: h('div', { class: 'lib__ind' }), est: est, acu: acu, q: q, lote: h('div'), botonSel: botonSel, ord: ordSel };
+    var puedeApartar = def.numeroAuto && puedeCapturar(t) && tiene('apartar') && E.anio === ini.anioActual;
     cont.appendChild(h('div', null,
       h('section', { class: 'lib' },
         h('div', { class: 'lib__fila' },
           h('span', { class: 'lib__ico' }, icono(ICONO_TIPO[t])),
           h('div', { class: 'lib__txt' }, h('h1', { class: 'lib__t' }, def.nombre), h('p', { class: 'lib__d' }, DESC_TIPO[t] + ' · Año ' + E.anio)),
           h('div', { class: 'lib__acciones' },
+            puedeApartar ? h('button', { class: 'btn btn--claro', title: 'El siguiente número, ya, aunque todavía no tengas el oficio', onclick: function () { ventanaApartar(t); } }, icono('apartar'), 'Apartar número') : null,
             puedeCapturar(t) ? h('button', { class: 'btn btn--blanco', onclick: function () { formulario(t, null); } }, icono('mas'), 'Nuevo ' + def.singular.toLowerCase()) : null)),
         refsReg.indicadores),
-      h('div', { class: 'herr' }, h('div', { class: 'buscador' }, icono('buscar'), q), anio, est, acu, botonSel),
+      h('div', { class: 'herr' }, h('div', { class: 'buscador' }, icono('buscar'), q), anio, est, acu, ordSel, botonSel),
       refsReg.lote, refsReg.res));
     var c = E.listas[E.tipo + E.anio];
     if (c) {
@@ -52,7 +58,6 @@
 
   function mesActual() { return hoyIso().slice(0, 7); }
   function esMio(r) { return !!(r.turnado_usuario && E.ini && r.turnado_usuario === E.ini.yo.usuario); }
-  function esActivo(r) { return r.estatus === 'Pendiente' || r.estatus === 'En trámite'; }
   function esVencido(r) { return esActivo(r) && r.fecha_limite && r.fecha_limite < hoyIso(); }
   function esDelMes(r) { return String(r.fecha_recepcion || r.fecha || '').slice(0, 7) === mesActual(); }
   /** «Sin acuse» (u «original») cuenta desde la fecha de corte de Configuración, si hay. */
@@ -75,14 +80,18 @@
         corteAcuse() ? 'Desde el ' + fechaCorta(corteAcuse()) + ' (Configuración)' : null]);
     }
     datos.push(['De este mes', n(esDelMes), function () { aplicar('(mes)', ''); }, E.filtros.estatus === '(mes)']);
+    if (tipoDef(E.tipo).numeroAuto && l && (l.some(porCompletar) || E.filtros.estatus === '(completar)')) {
+      datos.push(['Por completar', n(porCompletar), function () { aplicar('(completar)', ''); }, E.filtros.estatus === '(completar)', 'Números apartados que aún no tienen asunto']);
+    }
     if (tiene('misAsuntos')) datos.push(['Turnados a mí', n(esMio), function () { aplicar('(mios)', ''); }, E.filtros.estatus === '(mios)']);
     vaciar(cont);
     datos.forEach(function (d) {
       cont.appendChild(h('button', { class: 'ind' + (d[3] ? ' activo' : ''), onclick: d[2], 'aria-pressed': d[3] ? 'true' : 'false', title: d[4] || null },
-        h('span', { class: 'ind__n' }, d[1]), h('span', { class: 'ind__t' }, d[0] + (d[4] ? ' *' : ''))));
+        h('span', { class: 'ind__n' }, d[1]), h('span', { class: 'ind__t' }, d[0] + (d[4] && d[0] !== 'Por completar' ? ' *' : ''))));
     });
     function aplicar(estatus, acuse) {
       E.filtros.estatus = estatus; E.filtros.acuse = acuse; E.mostrar = 60;
+      guardarFiltros(E.tipo, { estatus: estatus, acuse: acuse });
       if (refsReg.est) refsReg.est.value = estatus;
       if (refsReg.acu) refsReg.acu.value = acuse;
       pintarLista();
@@ -122,7 +131,7 @@
   }
 
   var CAMPOS_LISTA = ['id', 'tipo', 'anio', 'consecutivo', 'sufijo', 'numero', 'asunto', 'dirigido_id', 'dirigido_a', 'firma_id', 'firma',
-    'fecha', 'fecha_recepcion', 'elaboro', 'acuse', 'carpeta', 'estatus', 'fecha_limite', 'turnado_a', 'relacionado_id', 'turnado_usuario'];
+    'fecha', 'fecha_recepcion', 'elaboro', 'acuse', 'carpeta', 'estatus', 'fecha_limite', 'turnado_a', 'relacionado_id', 'turnado_usuario', 'creado_por'];
   function corta(s, n) { s = String(s === null || s === undefined ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
   function ordenLista(a, b) { return b.consecutivo - a.consecutivo || (b.sufijo > a.sufijo ? 1 : -1); }
 
@@ -162,11 +171,63 @@
       if (f.estatus === '(mes)' && !esDelMes(r)) return false;
       if (f.estatus === '(mios)' && !esMio(r)) return false;
       if (f.estatus === '(sinacuse)' && !sinAcuse(r)) return false;
+      if (f.estatus === '(completar)' && !porCompletar(r)) return false;
       if (f.estatus && f.estatus.charAt(0) !== '(' && r.estatus !== f.estatus) return false;
       if (f.acuse && r.acuse !== f.acuse) return false;
       for (var i = 0; i < palabras.length; i++) if (r._b.indexOf(palabras[i]) < 0) return false;
       return true;
-    });
+    }).sort(comparador());
+  }
+
+  /* ─────────── Ordenar (se recuerda por libreta, en este equipo) ─────────── */
+  var OPCIONES_ORDEN = [['num', 'desc', 'Más recientes primero'], ['num', 'asc', 'Más antiguos primero'], ['fecha', 'desc', 'Fecha: más nueva'], ['fecha', 'asc', 'Fecha: más vieja'],
+    ['limite', 'asc', 'Fecha límite: la más próxima'], ['asunto', 'asc', 'Asunto (A → Z)'], ['persona', 'asc', 'Persona (A → Z)'], ['estatus', 'asc', 'Estatus']];
+  function ordenActual() {
+    var g = filtrosGuardados(E.tipo).orden;
+    return g && g.campo ? g : { campo: 'num', dir: 'desc' };
+  }
+  function ponerOrden(campo, dir) {
+    var o = campo === 'num' && dir === 'desc' ? null : { campo: campo, dir: dir };   // el de siempre no se guarda
+    guardarFiltros(E.tipo, { orden: o });
+    if (refsReg.ord) refsReg.ord.value = campo + ':' + dir;
+    pintarLista();
+  }
+  /** Al tocar el título de una columna: primero de menor a mayor (los números, al revés), y al volver a tocar se invierte. */
+  function alternarOrden(campo) {
+    var o = ordenActual();
+    ponerOrden(campo, o.campo === campo ? (o.dir === 'asc' ? 'desc' : 'asc') : (campo === 'num' || campo === 'fecha' ? 'desc' : 'asc'));
+  }
+  var compararTexto = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('es', { sensitivity: 'base', numeric: true }).compare : function (a, b) { return a < b ? -1 : a > b ? 1 : 0; };
+  function comparador() {
+    var o = ordenActual(), t = E.tipo, signo = o.dir === 'asc' ? 1 : -1;
+    if (o.campo === 'num') return function (a, b) { return signo * ((a.consecutivo - b.consecutivo) || compararTexto(a.sufijo || '', b.sufijo || '')); };
+    var valor = {
+      fecha: function (r) { return r[columnaFecha(t)[0]] || r.fecha || ''; },
+      limite: function (r) { return r.fecha_limite || ''; },
+      asunto: function (r) { return String(r.asunto || '').trim(); },
+      persona: function (r) { return lineas(r[columnaPersona(t)[0]]).primera || ''; },
+      estatus: function (r) { return r.estatus || ''; }
+    }[o.campo] || function (r) { return ''; };
+    return function (a, b) {
+      var x = valor(a), y = valor(b);
+      if (!x !== !y) return x ? -1 : 1;   // los vacíos siempre al final
+      return signo * compararTexto(x, y) || b.consecutivo - a.consecutivo;
+    };
+  }
+  function encabezado(campo, texto) {
+    var o = ordenActual(), activo = o.campo === campo;
+    return h('th', { 'aria-sort': activo ? (o.dir === 'asc' ? 'ascending' : 'descending') : 'none' },
+      h('button', { type: 'button', class: 'th-orden' + (activo ? ' activo' : ''), 'aria-label': 'Ordenar por ' + texto.toLowerCase(), onclick: function () { alternarOrden(campo); } },
+        texto, h('span', { class: 'th-orden__f', 'aria-hidden': 'true' }, activo ? (o.dir === 'asc' ? '▲' : '▼') : '↕')));
+  }
+  function hayFiltros() { return !!(E.filtros.q || E.filtros.estatus || E.filtros.acuse); }
+  function quitarFiltros() {
+    E.filtros = { q: '', estatus: '', acuse: '' }; E.mostrar = 60;
+    guardarFiltros(E.tipo, { estatus: '', acuse: '' });
+    if (refsReg.q) refsReg.q.value = '';
+    if (refsReg.est) refsReg.est.value = '';
+    if (refsReg.acu) refsReg.acu.value = '';
+    pintarLista();
   }
 
   function columnaPersona(t) { return t === 'OFS' ? ['dirigido_a', 'Dirigido a'] : ['firma', etiquetaCampo(t, 'firma', 'Remitente')]; }
@@ -186,10 +247,11 @@
     var cp = columnaPersona(t), cf = columnaFecha(t);
     var numEt = t === 'OFS' ? 'No. de oficio' : etiquetaCampo(t, 'numero', 'Número');
     vaciar(refsReg.res);
-    refsReg.res.appendChild(h('p', { class: 'conteo' }, filas.length === E.lista.length ? E.lista.length + ' registros' : filas.length + ' de ' + E.lista.length + ' registros'));
+    refsReg.res.appendChild(h('p', { class: 'conteo' }, filas.length === E.lista.length ? E.lista.length + ' registros' : filas.length + ' de ' + E.lista.length + ' registros',
+      hayFiltros() ? [' · ', h('button', { type: 'button', class: 'enlace', onclick: quitarFiltros }, 'Quitar filtros')] : null));
     if (!filas.length) {
       refsReg.res.appendChild(h('div', { class: 'tarjeta vacio' }, h('strong', null, E.lista.length ? 'Nada coincide con la búsqueda' : 'Todavía no hay registros'),
-        E.lista.length ? 'Prueba con otras palabras o quita filtros.' : (puedeCapturar(t) ? 'Usa «Nuevo» para capturar el primero.' : '')));
+        E.lista.length ? h('span', null, 'Prueba con otras palabras o ', h('button', { type: 'button', class: 'enlace', onclick: quitarFiltros }, 'quita los filtros'), '.') : (puedeCapturar(t) ? 'Usa «Nuevo» para capturar el primero.' : '')));
       return;
     }
     var todosVis = sel && vis.length && vis.every(function (r) { return sel.ids[r.id] || r.estatus === 'Cancelado'; });
@@ -197,7 +259,7 @@
       h('thead', null, h('tr', null,
         sel ? h('th', { class: 't-sel' }, h('input', { type: 'checkbox', class: 'sel__c', checked: !!todosVis, 'aria-label': 'Elegir todos los que se ven',
           onclick: function () { vis.forEach(function (r) { if (r.estatus === 'Cancelado') return; if (todosVis) delete sel.ids[r.id]; else sel.ids[r.id] = true; }); pintarLista(); } })) : null,
-        h('th', null, 'No.'), h('th', null, numEt), h('th', null, 'Asunto'), h('th', null, cp[1]), h('th', null, cf[1]), h('th', null, 'Estatus'), h('th', { 'aria-label': 'Acuse y archivo' }, ''))),
+        encabezado('num', 'No.'), h('th', null, numEt), encabezado('asunto', 'Asunto'), encabezado('persona', cp[1]), encabezado('fecha', cf[1]), encabezado('estatus', 'Estatus'), h('th', { 'aria-label': 'Acuse y archivo' }, ''))),
       h('tbody', null, vis.map(function (r) {
         var p = lineas(r[cp[0]]);
         return h('tr', { class: (r.estatus === 'Cancelado' ? 'cancelado' : '') + (sel && sel.ids[r.id] ? ' elegido' : ''), tabindex: '0', onclick: function () { abrir(r); },
@@ -208,7 +270,7 @@
           h('td', { class: 't-asunto' }, r.asunto || h('em', { style: { color: 'var(--texto-3)' } }, 'Sin asunto'), r.obs ? h('span', { class: 't-asunto__obs' }, r.obs) : null),
           h('td', { class: 't-persona' }, p.primera || '—', p.resto ? h('small', null, p.resto) : null),
           h('td', { class: 't-fecha' }, fechaCorta(r[cf[0]] || r.fecha)),
-          h('td', null, r.estatus ? insEstatus(r.estatus) : null, ' ', insVence(r), esMio(r) ? [' ', insMio()] : null),
+          h('td', null, porCompletar(r) ? insCompletar() : r.estatus ? insEstatus(r.estatus) : null, ' ', insVence(r), esMio(r) ? [' ', insMio()] : null),
           h('td', { class: 't-iconos' },
             h('span', { class: r.acuse === 'SI' ? 'si' : '', title: r.acuse === 'SI' ? 'Con acuse' : 'Sin acuse' }, icono(r.acuse === 'SI' ? 'check' : 'reloj')), ' ',
             r.tiene_archivo || r.tiene_acuse_archivo ? h('span', { title: 'Tiene archivo' }, icono('clip')) : null));
@@ -216,7 +278,7 @@
     var movil = h('div', { class: 'tarjeta lista-movil' }, vis.map(function (r) {
       var p = lineas(r[cp[0]]);
       return h('div', { class: 'item' + (sel && sel.ids[r.id] ? ' elegido' : ''), onclick: function () { abrir(r); } },
-        h('div', { class: 'item__arriba' }, sel && r.estatus !== 'Cancelado' ? casilla(r) : null, h('span', { class: 't-num' }, etiquetaNum(r)), r.estatus ? insEstatus(r.estatus) : null, insVence(r),
+        h('div', { class: 'item__arriba' }, sel && r.estatus !== 'Cancelado' ? casilla(r) : null, h('span', { class: 't-num' }, etiquetaNum(r)), porCompletar(r) ? insCompletar() : r.estatus ? insEstatus(r.estatus) : null, insVence(r),
           r.acuse === 'SI' ? h('span', { class: 'ins ins--Atendido' }, 'Acuse') : null, esMio(r) ? insMio() : null),
         h('div', { class: 'item__asunto' }, r.asunto || 'Sin asunto'),
         h('div', { class: 'item__meta' }, [r.numero, p.primera, fechaCorta(r[cf[0]] || r.fecha)].filter(Boolean).join(' · ')));
@@ -281,6 +343,7 @@
     } else {
       control = h('input', { class: 'entrada', type: 'date', min: '2000-01-01', max: '2100-12-31' });
       nota.textContent = 'Déjala vacía para quitar la fecha límite.';
+      var notaInhabil = vigilarInhabil(control, h('div', { class: 'campo__ayuda campo__ayuda--aviso oculto', role: 'status' }));
     }
     var boton = h('button', { class: 'btn btn--prim', onclick: function () {
       var cambios = {};
@@ -295,7 +358,8 @@
         var omit = (r.omitidos || []).map(function (x) { return (x.num ? x.num + ': ' : '') + x.motivo; });
         aviso('Listo: ' + r.cambiados + ' registro' + (r.cambiados === 1 ? '' : 's') + ' cambiado' + (r.cambiados === 1 ? '' : 's') +
           (r.sinCambio ? ' (' + r.sinCambio + ' ya lo tenían)' : '') + '.', r.cambiados ? 'ok' : 'info',
-          omit.length ? 'No se tocaron ' + omit.length + ': ' + omit.slice(0, 5).join('; ') + (omit.length > 5 ? '…' : '') : null);
+          omit.length ? 'No se tocaron ' + omit.length + ': ' + omit.slice(0, 5).join('; ') + (omit.length > 5 ? '…' : '') : null,
+          r.cambiados ? ofrecerDeshacer(r) : null);
       }).catch(function (e) {
         boton.disabled = false; boton.textContent = 'Cambiar ' + ids.length;
         vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, e.message));
@@ -303,7 +367,62 @@
     } }, 'Cambiar ' + ids.length);
     var v = ventana({ titulo: titulos[campoLote], ancho: 480, cuidar: true,
       cuerpo: [h('p', { style: { margin: 0 } }, 'Se cambiará en ' + ids.length + (ids.length === 1 ? ' registro' : ' registros') + ' de ' + def.nombre + '. Cada cambio queda en la Bitácora.'),
-        campo({ estatus: 'Estatus nuevo', acuse: t === 'OFE' ? '¿Se tiene el original?' : '¿Ya se tiene el acuse?', turnado_usuario: 'Persona', fecha_limite: 'Fecha límite' }[campoLote], control), nota, msg],
+        campo({ estatus: 'Estatus nuevo', acuse: t === 'OFE' ? '¿Se tiene el original?' : '¿Ya se tiene el acuse?', turnado_usuario: 'Persona', fecha_limite: 'Fecha límite' }[campoLote], control), nota, notaInhabil || null, msg],
       pie: [h('button', { class: 'btn', onclick: function () { v.cerrar(); } }, 'Cancelar'), boton] });
+  }
+
+  /* ─────────── Apartar número ─────────── */
+  // Así trabajan: primero piden el número y luego escriben el oficio. El número
+  // sale al instante y el registro queda «por completar» hasta que tenga asunto.
+  function ventanaApartar(t) {
+    var def = tipoDef(t);
+    var cant = h('input', { class: 'entrada', type: 'number', min: 1, max: 20, value: 1, style: { maxWidth: '110px' } });
+    var nota = h('input', { class: 'entrada', maxlength: 300, placeholder: 'Ej.: respuesta a la Alcaldía, para Valentina…' });
+    var msg = h('div');
+    var max = 0;
+    (E.lista || []).forEach(function (r) { if (r.tipo === t) max = Math.max(max, Number(r.consecutivo) || 0); });
+    var plantilla = E.ini.config.plantilla_OFS || '';
+    var ejemplo = max && plantilla ? plantilla.replace('{NNN}', pad3(max + 1)).replace('{AAAA}', E.ini.anioActual) : '';
+    var boton = h('button', { class: 'btn btn--prim', onclick: function () {
+      var n = Math.floor(Number(cant.value) || 0);
+      if (n < 1 || n > 20) { vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, 'Se pueden apartar de 1 a 20 números por vez.')); cant.focus(); return; }
+      boton.disabled = true; boton.textContent = 'Apartando…';
+      llamar('apartar', { tipo: t, cantidad: n, nota: nota.value }).then(function (res) {
+        v.cerrar();
+        (res.registros || []).forEach(actualizarEnLista);
+        E.iniT = 0;
+        if (E.anio === E.ini.anioActual) E.ini.conteos[t] = (E.ini.conteos[t] || 0) + res.cuantos;
+        resultadoApartar(t, res);
+      }).catch(function (e) {
+        boton.disabled = false; boton.textContent = 'Apartar';
+        vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, e.message));
+      });
+    } }, 'Apartar');
+    var v = ventana({ titulo: 'Apartar número · ' + def.nombre, ancho: 480,
+      cuerpo: [h('p', { style: { margin: 0 } }, 'Te da el siguiente número ahora, aunque todavía no tengas el oficio. Queda como «por completar» hasta que le pongas el asunto (Editar).'),
+        ejemplo ? h('div', { class: 'numero-previo' }, 'Si nadie más guarda antes, te tocará ', h('strong', null, ejemplo), '.') : null,
+        h('div', { class: 'rejilla' }, campo('¿Cuántos números?', cant), campo('Para qué (opcional)', nota, { ancho: true, ayuda: 'Queda en las observaciones, para que se sepa de quién es.' })),
+        msg],
+      pie: [h('button', { class: 'btn', onclick: function () { v.cerrar(); } }, 'Cancelar'), boton] });
+  }
+
+  function resultadoApartar(t, res) {
+    var regs = res.registros || [], uno = regs.length === 1;
+    var texto = regs.map(function (r) { return r.numero || etiquetaNum(r); }).join('\n');
+    var copiar = function () {
+      (navigator.clipboard ? navigator.clipboard.writeText(texto) : Promise.reject()).then(function () { aviso('Copiado: ' + texto.replace(/\n/g, ', '), 'ok'); }, function () { aviso(texto); });
+    };
+    var rv = ventana({ titulo: uno ? 'Número apartado' : res.cuantos + ' números apartados', ancho: 480, sinFoco: true,
+      cuerpo: [
+        uno ? h('div', { class: 'apartado' }, h('span', { class: 'apartado__et' }, tipoDef(t).singular + ' ' + etiquetaNum(regs[0])), h('strong', { class: 'apartado__num' }, regs[0].numero || etiquetaNum(regs[0])))
+          : h('div', { class: 'alerta alerta--ok' }, 'Del ', h('strong', null, res.desde), ' al ', h('strong', null, res.hasta), '.'),
+        h('p', { class: 'campo__ayuda', style: { margin: 0 } }, 'Escríbelo en tu oficio. Cuando lo tengas, ábrelo y usa «Completar» para capturar el asunto y lo demás. Si al final no se usa, pide a un administrador que lo cancele (el número no se vuelve a usar).')],
+      pie: [h('button', { class: 'btn', onclick: copiar }, icono('copiar'), uno ? 'Copiar número' : 'Copiar números'),
+        uno ? h('button', { class: 'btn', onclick: function () {
+          var b = this; b.disabled = true;
+          // El formulario necesita el registro completo (versión, observaciones…), no la fila de la lista
+          llamar('obtener', { id: regs[0].id }).then(function (d) { rv.cerrar(); formulario(t, d.registro); }).catch(function (e) { b.disabled = false; fallo(e); });
+        } }, icono('editar'), 'Completar ahora') : null,
+        h('button', { class: 'btn btn--prim', onclick: function () { rv.cerrar(); } }, 'Listo')] });
   }
 </script>

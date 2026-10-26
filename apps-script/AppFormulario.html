@@ -204,6 +204,29 @@
     function ini(k, d) { return base[k] !== undefined && base[k] !== null && base[k] !== '' ? base[k] : (pre[k] !== undefined ? pre[k] : d); }
     var plazo = Number(E.ini.config.plazo_dias) || 0;
     var ctrl = {}, limiteTocado = !!base.fecha_limite;
+    var completar = !nuevo && porCompletar(base);   // un número apartado al que se le captura el oficio
+    // «Lo de siempre»: quien captura casi siempre pone la misma firma (o el mismo
+    // destinatario, en lo recibido) y el mismo «elaboró»: salen como en su último registro.
+    var deSiempre = null;
+    if ((nuevo && !opciones.copia) || completar) {
+      var propia = listaDe(t).filter(function (r) { return r.creado_por === E.ini.yo.usuario && !porCompletar(r) && r.estatus !== 'Cancelado' && r.id !== base.id; })
+        .sort(function (a, b) { return b.consecutivo - a.consecutivo; })[0];
+      if (propia) {
+        var puestos = [];
+        var par = def.recibido ? ['dirigido_id', 'dirigido_a', 'dirigido'] : ['firma_id', 'firma', 'firma'];
+        if (tieneCampo(t, par[2]) && !pre[par[0]] && !base[par[0]] && !base[par[1]] && (propia[par[0]] || propia[par[1]])) {
+          var p0 = propia[par[0]] && E.directorio.filter(function (x) { return x.id === propia[par[0]]; })[0];
+          pre[par[0]] = p0 ? p0.id : propia[par[0]] || '';
+          pre[par[1]] = p0 ? p0.nombre + (p0.cargo ? '\n' + p0.cargo : '') : propia[par[1]];
+          puestos.push(par[2] === 'firma' ? 'la firma' : 'el destinatario');
+        }
+        if (tieneCampo(t, 'elaboro') && !pre.elaboro && !base.elaboro && propia.elaboro) {
+          pre.elaboro = propia.elaboro;
+          puestos.push('quién ' + etiquetaCampo(t, 'elaboro', 'Elaboró').toLowerCase());
+        }
+        if (puestos.length) deSiempre = { num: etiquetaNum(propia), que: puestos.join(' y '), varios: puestos.length > 1 };
+      }
+    }
     // Al capturar, propone a quien más se repite en esta libreta (casi siempre
     // firma el mismo titular y los entrantes van dirigidos a la misma persona).
     if (nuevo && !opciones.copia && E.tipo === t && E.lista.length) {
@@ -320,7 +343,8 @@
       if (nuevo) calc();
     }
     var segui = h('fieldset', { class: 'grupo' }, h('legend', null, 'Seguimiento'),
-      h('div', { class: 'rejilla' }, campo('Estatus', ctrl.estatus), campo('Fecha límite de respuesta', ctrl.fecha_limite, { ayuda: plazo && def.recibido ? 'Se calcula con ' + plazo + ' días hábiles (sin sábados, domingos ni los días inhábiles de Configuración); puedes cambiarla.' : null }),
+      h('div', { class: 'rejilla' }, campo('Estatus', ctrl.estatus), h('div', null, campo('Fecha límite de respuesta', ctrl.fecha_limite, { ayuda: plazo && def.recibido ? 'Se calcula con ' + plazo + ' días hábiles (sin sábados, domingos ni los días inhábiles de Configuración); puedes cambiarla.' : null }),
+          vigilarInhabil(ctrl.fecha_limite, h('div', { class: 'campo__ayuda campo__ayuda--aviso oculto', role: 'status' }))),
         campoTurno,
         h('div', { class: 'campo ancho' }, campo('Turnado a', ctrl.turnado_a, { ayuda: campoTurno ? 'Área o persona externa que lo atiende (texto libre).' : 'Área o persona que lo atiende.' }), dlTurno),
         h('div', { class: 'ancho' }, cajaRel),
@@ -329,7 +353,8 @@
     // Archivos (solo al dar de alta; después se manejan desde el detalle)
     var fDoc = selectorArchivo('Documento escaneado');
     var fAcu = selectorArchivo(t === 'OFE' ? 'Oficio original / acuse' : 'Acuse');
-    var archivos = nuevo ? h('fieldset', { class: 'grupo' }, h('legend', null, 'Archivos (opcional)'),
+    var conArchivos = nuevo || completar;
+    var archivos = conArchivos ? h('fieldset', { class: 'grupo' }, h('legend', null, 'Archivos (opcional)'),
       h('div', { class: 'rejilla' }, fDoc.el, fAcu.el)) : null;
     var notaArchivos = varios ? h('div', { class: 'alerta alerta--info oculto' }, 'Con varios destinatarios, los escaneos y acuses se suben después en cada oficio (desde su detalle).') : null;
 
@@ -342,13 +367,21 @@
       previo = h('div', { class: 'numero-previo' }, 'El número se asigna al guardar' + (ejemplo ? ' (si nadie más guarda antes, será ' : '.'),
         ejemplo ? h('strong', null, ejemplo) : null, ejemplo ? ').' : null);
     }
+    var avisoArriba = completar
+      ? h('div', { class: 'alerta alerta--info' }, h('strong', null, 'Número apartado. '), 'Captura el asunto y lo demás del oficio. La fecha es la del día en que se apartó: cámbiala si el oficio lleva otra.')
+      : deSiempre ? h('p', { class: 'campo__ayuda nota-siempre' }, icono('copiar'), deSiempre.que.charAt(0).toUpperCase() + deSiempre.que.slice(1) +
+        (deSiempre.varios ? ' salen' : ' sale') + ' como en tu último registro (' + deSiempre.num + '). Cámbialo si hace falta.') : null;
     var msg = h('div');
-    var boton = h('button', { class: 'btn btn--prim', type: 'button', onclick: function () { if (modoVarios) enviarVarios(); else enviar(false); } });
+    var seguirCapturando = false;
+    var boton = h('button', { class: 'btn btn--prim', type: 'button', onclick: function () { seguirCapturando = false; if (modoVarios) enviarVarios(); else enviar(false); } });
+    // «Guardar y capturar otro»: para cuando se registran varios seguidos
+    var botonOtro = nuevo && !opciones.copia && !opciones.original ? h('button', { class: 'btn', type: 'button', onclick: function () { seguirCapturando = true; enviar(false); } }, 'Guardar y capturar otro') : null;
     function textoBoton() {
       if (modoVarios) {
         var n = varios.elegidos().length;
         boton.textContent = n ? 'Revisar y crear ' + n + (n === 1 ? ' oficio' : ' oficios') : 'Elige los destinatarios';
       } else boton.textContent = nuevo ? (def.numeroAuto ? 'Guardar y asignar número' : 'Guardar') : 'Guardar cambios';
+      if (botonOtro) botonOtro.classList.toggle('oculto', modoVarios);
     }
     textoBoton();
 
@@ -371,23 +404,33 @@
       if (!d.fecha) { vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, 'Falta la fecha.')); ctrl.fecha.focus(); return; }
       if (confirmarDuplicado) d.confirmarDuplicado = true;
       boton.disabled = true; boton.textContent = 'Guardando…';
+      if (botonOtro) botonOtro.disabled = true;
       llamar('guardar', d).then(function (res) {
         var r = res.registro, ultimo = res;
         var anotar = function (x) { if (x && x.registro) ultimo = x; };   // la última respuesta trae el registro y su panel al día
         var subidas = Promise.resolve();
-        if (nuevo && fDoc.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'oficio', fDoc.archivo()).then(anotar); });
-        if (nuevo && fAcu.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'acuse', fAcu.archivo()).then(anotar); });
+        if (conArchivos && fDoc.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'oficio', fDoc.archivo()).then(anotar); });
+        if (conArchivos && fAcu.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'acuse', fAcu.archivo()).then(anotar); });
         return subidas.catch(function (e) { aviso('El registro se guardó, pero el archivo no: ' + e.message, 'error'); }).then(function () {
           v.antesDeCerrar = null; v.cerrar();
           if (res.sinCambios) aviso('No había cambios que guardar.');
           else aviso((nuevo ? 'Registrado: ' : 'Guardado: ') + def.singular + ' ' + etiquetaNum(r) + (r.numero && def.numeroAuto ? ' · ' + r.numero : ''), 'ok');
           if (nuevo && E.anio === E.ini.anioActual) E.ini.conteos[t] = (E.ini.conteos[t] || 0) + 1;
-          if (E.vista === 'pendientes' || E.vista === 'misAsuntos') irA(E.vista, null, { sinHistorial: true });
+          if (E.vista === 'pendientes' || E.vista === 'misAsuntos' || E.vista === 'calendario') irA(E.vista, null, { sinHistorial: true });
+          if (seguirCapturando) {
+            // Sin abrir el registro: la lista se pone al día y sale otro formulario limpio
+            if (ultimo.registro) actualizarEnLista(ultimo.registro);
+            E.iniT = 0;
+            if (E.vista === 'libreta') cargarLista({ silencioso: true });
+            formulario(t, null);
+            return;
+          }
           trasCambio(ultimo, r.id);
           if (E.vista === 'libreta') cargarLista({ silencioso: true });
         });
       }).catch(function (e) {
         boton.disabled = false; textoBoton();
+        if (botonOtro) botonOtro.disabled = false;
         if (e.codigo === 'DUPLICADO') {
           confirmar(e.message, { titulo: 'Número repetido', si: 'Sí, es otro documento: guardar', no: 'Revisar' }).then(function (s) { if (s) enviar(true); });
         } else {
@@ -455,16 +498,23 @@
     }
 
     var v = ventana({
-      titulo: nuevo ? (opciones.copia ? 'Nuevo ' + def.singular.toLowerCase() + ' (copia de ' + etiquetaNum(opciones.copia) + ')' : 'Nuevo ' + def.singular.toLowerCase()) : 'Editar ' + def.singular.toLowerCase() + ' ' + etiquetaNum(base),
+      titulo: nuevo ? (opciones.copia ? 'Nuevo ' + def.singular.toLowerCase() + ' (copia de ' + etiquetaNum(opciones.copia) + ')' : 'Nuevo ' + def.singular.toLowerCase())
+        : (completar ? 'Completar ' : 'Editar ') + def.singular.toLowerCase() + ' ' + etiquetaNum(base),
       ancho: 820, cuidar: true,
-      cuerpo: [msg, interruptorVarios, previo, rejilla, segui, archivos, notaArchivos],
-      pie: [h('button', { class: 'btn', onclick: function () { v.intentarCerrar(); } }, 'Cancelar'), boton],
+      cuerpo: [msg, avisoArriba, interruptorVarios, previo, rejilla, segui, archivos, notaArchivos],
+      pie: [h('button', { class: 'btn', onclick: function () { v.intentarCerrar(); } }, 'Cancelar'), botonOtro, boton],
       antesDeCerrar: function () {
         if (JSON.stringify(datos()) === original && !fDoc.archivo() && !fAcu.archivo() && !(varios && varios.elegidos().length)) return true;
         return confirmar('Hay cambios sin guardar. ¿Salir sin guardar?', { si: 'Salir sin guardar', no: 'Seguir editando', peligro: true });
       }
     });
     if (panelActual && !nuevo) cerrarPanel();
+  }
+
+  /** La lista del año de una libreta (ya precargada), aunque no sea la que está en pantalla. */
+  function listaDe(t) {
+    var c = E.ini && E.listas[t + E.ini.anioActual];
+    return c ? c.lista : (E.tipo === t && E.lista ? E.lista : []);
   }
 
   /** Lo que se creó con «Varios destinatarios», para copiarlo o revisarlo. */

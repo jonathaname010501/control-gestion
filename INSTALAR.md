@@ -47,8 +47,8 @@ varias cuentas abiertas, usa una ventana de incógnito.
    | `App`, `AppEntrada`, `AppQR`, `AppPortal`, `AppLibreta`, `AppDetalle`, `AppFormulario`, `AppInformes`, `AppAdmin`, `AppArranque` | **+ → HTML**, uno por archivo | `apps-script/<nombre>.html` |
    | `appsscript.json` | Ya existe | `apps-script/appsscript.json` |
 
-   En cada uno: borra lo que traiga, pega **todo** y guarda (Ctrl+S). Son 20 archivos
-   (más el manifiesto): si falta uno de los `App…`, la página marca error al abrirse.
+   En cada uno: borra lo que traiga, pega **todo** y guarda (Ctrl+S). Son 19 archivos
+   (20 con el manifiesto): si falta uno de los `App…`, la página marca error al abrirse.
 
    > Si no encuentras la opción para crear un script, pega el contenido de los `.gs`
    > **al final** de `Servidor`, uno tras otro. Funciona igual.
@@ -308,6 +308,9 @@ Si nadie puede contestar la pregunta (por ejemplo, desde un programa), agrega
 | «El código no es correcto» aunque lo copies bien | Revisa que la hora del celular esté en automático: los códigos dependen de la hora. |
 | No llegan los avisos por correo | Configuración → Avisos por correo prendido, y la persona con correo en Usuarios o Mi cuenta. Revisa la carpeta de spam. La Bitácora dice cuántos se mandaron cada día. |
 | Cambié algo a mano en la hoja y la app no lo muestra | La app guarda la lista en memoria hasta 15 min. Corre `revisarSeguridad` en el editor (la limpia) o espera. Mejor: cambia las cosas desde la app. |
+| El código QR del volante abre la URL de Google y no Vercel | Configuración → **Dirección pública de la app** → pega la dirección de Vercel y guarda. |
+| «Ya no se puede deshacer» | «Deshacer» dura 10 minutos, sirve una vez y solo para quien hizo el cambio. Después, cámbialo a mano (queda en la Bitácora). |
+| Un número apartado no se va a usar | Un administrador lo abre y lo **cancela** con el motivo; el número no se reutiliza. |
 | «Borrador en Word» dice que la plantilla no sirve | Que el documento siga en la carpeta «Plantillas (NO COMPARTIR)» y sea un documento de Google (no un .docx subido). |
 | ¿Algo quedó compartido? | Editor → `revisarSeguridad`. |
 | El volante sale en una hoja carta con mucho espacio | En el cuadro de impresión elige papel «Media carta» / 5.5 × 8.5 in si tu impresora lo tiene, o déjalo en carta: el volante ocupa la mitad de arriba. Usa «Tamaño real» o «100 %». |
@@ -317,7 +320,7 @@ Si nadie puede contestar la pregunta (por ejemplo, desde un programa), agrega
 ## Probar en tu computadora (opcional)
 
 ```bash
-npm test                     # 108 pruebas (las que usan los datos reales necesitan base/base.json)
+npm test                     # 120 pruebas (las que usan los datos reales necesitan base/base.json)
 npm run local                # la app con la base migrada en http://localhost:4321
 npm run e2e                  # recorrido en navegador de lo nuevo (necesita Playwright)
 npm run empaquetar           # .zip del proyecto SIN datos, para compartir o pedir ayuda

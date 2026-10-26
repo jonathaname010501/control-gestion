@@ -14,7 +14,7 @@
 
   // Versión de esta página. Debe coincidir con VERSION de Servidor.gs: si la
   // página (Vercel) se actualiza y el servidor (Apps Script) no, se avisa.
-  var VERSION_APP = '1.7.0';
+  var VERSION_APP = '1.8.0';
 
   /* ───────────────────────── Utilidades ───────────────────────── */
   var ICONOS = {
@@ -65,7 +65,13 @@
     herramienta: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
     respaldo: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
     imprimir: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
-    grafica: '<path d="M3 3v18h18"/><path d="M7 16v-4M11 16V8M15 16v-6M19 16V5"/>'
+    grafica: '<path d="M3 3v18h18"/><path d="M7 16v-4M11 16V8M15 16v-6M19 16V5"/>',
+    calendario: '<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h.01M12 13.5h.01M16.5 13.5h.01M7.5 17h.01M12 17h.01"/>',
+    nota: '<path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5M8 9h8M8 12.5h5"/>',
+    ayuda: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .8c0 1.8-2.5 2.2-2.5 3.8M12 17h.01"/>',
+    deshacer: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+    apartar: '<path d="M6 3h12v18l-6-4.5L6 21z"/><path d="M12 7v6M9 10h6"/>',
+    ordenar: '<path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>'
   };
 
   function icono(n) {
@@ -123,6 +129,19 @@
   function lineas(s) { var p = String(s || '').split('\n'); return { primera: p[0], resto: p.slice(1).join(' ') }; }
   function guardarLocal(k, v) { try { if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } }
   function leerLocal(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  /**
+   * Preferencias de este equipo (filtros y orden de cada libreta, novedades ya
+   * vistas). Solo preferencias: nunca datos de los oficios. Si el navegador no
+   * deja guardar, la app funciona igual (con los valores de siempre).
+   */
+  function pref(clave, valor) {
+    var todo = {};
+    try { todo = JSON.parse(localStorage.getItem('cg_pref') || '{}') || {}; } catch (e) { todo = {}; }
+    if (valor === undefined) return todo[clave];
+    if (valor === null) delete todo[clave]; else todo[clave] = valor;
+    try { localStorage.setItem('cg_pref', JSON.stringify(todo)); } catch (e) { /* sin almacenamiento */ }
+    return valor;
+  }
 
   /* ───────────────────────── Estado ───────────────────────── */
   var E = {
@@ -169,7 +188,8 @@
      sabe si alcanzó a guardarse: se dice así, para que no se capture dos veces. */
   var TIEMPO_MS = { subirArchivo: 180000, descargarArchivo: 120000, exportar: 120000, respaldo: 120000, informes: 90000, generarOficio: 120000, guardarLote: 90000, guardarVarios: 90000 };
   var ESCRITURAS = ['guardar', 'guardarVarios', 'guardarLote', 'cancelar', 'subirArchivo', 'quitarArchivo', 'guardarPersona', 'unirPersonas',
-    'guardarUsuario', 'restablecerClave', 'guardarConfig', 'mantenimiento', 'cambiarClave', 'totpConfirmar', 'totpQuitar', 'miCuenta'];
+    'guardarUsuario', 'restablecerClave', 'guardarConfig', 'mantenimiento', 'cambiarClave', 'totpConfirmar', 'totpQuitar', 'miCuenta',
+    'apartar', 'agregarNota', 'deshacerLote'];
   function errorTiempo(accion) {
     var e = new Error(ESCRITURAS.indexOf(accion) >= 0
       ? 'Google tardó demasiado en contestar y no sé si se guardó. Revisa la lista (o el registro) antes de intentarlo otra vez, para no capturarlo dos veces.'
@@ -280,9 +300,11 @@
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') revisarSesion(false); });
 
   /* ───────────────────────── Avisos y ventanas ───────────────────────── */
-  function aviso(texto, tipo, extra) {
+  /** accion (opcional) = { texto, fn }: un botón en el aviso, por ejemplo «Deshacer» (el aviso dura más). */
+  function aviso(texto, tipo, extra, accion) {
     var cont = document.getElementById('avisos');
     var el = h('div', { class: 'aviso aviso--' + (tipo || 'info') }, h('div', null, texto, extra ? h('div', { style: { marginTop: '6px' } }, extra) : null),
+      accion ? h('button', { class: 'aviso__accion', onclick: function () { el.remove(); accion.fn(); } }, icono('deshacer'), accion.texto) : null,
       h('button', { 'aria-label': 'Cerrar aviso', onclick: function () { el.remove(); } }, '✕'));
     cont.appendChild(el);
     // A lo más tres a la vez: si se juntan, se va el más viejo (que no sea un error)
@@ -290,7 +312,80 @@
       var viejo = Array.prototype.filter.call(cont.children, function (x) { return !/aviso--error/.test(x.className); })[0] || cont.firstChild;
       viejo.remove();
     }
-    setTimeout(function () { if (el.parentNode) el.remove(); }, tipo === 'error' ? 9000 : extra ? 12000 : 4500);
+    setTimeout(function () { if (el.parentNode) el.remove(); }, tipo === 'error' ? 9000 : accion ? 12000 : extra ? 12000 : 4500);
+    return el;
+  }
+
+  /**
+   * «Deshacer» para un cambio en lote (o «Atendido» desde una lista): el
+   * servidor guardó cómo estaba todo y devolvió una clave (10 min, una vez).
+   */
+  function ofrecerDeshacer(res, alDeshacer) {
+    if (!res || !res.deshacer || !tiene('deshacerLote')) return null;
+    return { texto: 'Deshacer', fn: function () {
+      llamar('deshacerLote', { clave: res.deshacer }).then(function (d) {
+        (d.registros || []).forEach(actualizarEnLista);
+        E.iniT = 0; E.pend = null; E.mis = null;
+        if (alDeshacer) alDeshacer(d);
+        var n = d.restaurados;
+        aviso(n ? 'Listo: se deshizo el cambio' + (n > 1 ? ' en ' + n + ' registros' : '') + '.' : 'No se deshizo nada.', n ? 'ok' : 'info',
+          d.omitidos && d.omitidos.length ? d.omitidos.length + (d.omitidos.length === 1 ? ' no se tocó porque' : ' no se tocaron porque') + ' alguien los volvió a cambiar.' : null);
+      }).catch(fallo);
+    } };
+  }
+
+  /* ─────────── Soltar archivos (arrastrar desde la computadora) ─────────── */
+  function traeArchivos(ev) { return !!(ev.dataTransfer && Array.prototype.indexOf.call(ev.dataTransfer.types || [], 'Files') >= 0); }
+  // Si alguien suelta un archivo fuera de una zona, el navegador no se va a abrir el PDF (y perder lo capturado).
+  window.addEventListener('dragover', function (ev) { if (traeArchivos(ev)) ev.preventDefault(); });
+  window.addEventListener('drop', function (ev) { if (traeArchivos(ev)) ev.preventDefault(); });
+  /** Convierte «el» en zona para soltar un archivo: alSoltar(archivo). */
+  function zonaSoltar(el, alSoltar) {
+    var dentro = 0;
+    el.classList.add('soltable');
+    el.addEventListener('dragenter', function (ev) { if (!traeArchivos(ev)) return; ev.preventDefault(); dentro++; el.classList.add('soltar--activo'); });
+    el.addEventListener('dragover', function (ev) { if (!traeArchivos(ev)) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; });
+    el.addEventListener('dragleave', function () { dentro = Math.max(0, dentro - 1); if (!dentro) el.classList.remove('soltar--activo'); });
+    el.addEventListener('drop', function (ev) {
+      if (!traeArchivos(ev)) return;
+      ev.preventDefault(); ev.stopPropagation();
+      dentro = 0; el.classList.remove('soltar--activo');
+      var f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+      if (!f) return;
+      if (ev.dataTransfer.files.length > 1) aviso('Se tomó solo el primero: ' + f.name);
+      alSoltar(f);
+    });
+    return el;
+  }
+
+  /** Número apartado que aún no se completa (sin asunto). */
+  function porCompletar(r) { return !!r && !String(r.asunto || '').trim() && r.estatus !== 'Cancelado'; }
+  function insCompletar() { return h('span', { class: 'ins ins--completar', title: 'Número apartado: falta capturar el oficio' }, icono('apartar'), 'Por completar'); }
+
+  /** Enlace que abre un registro directo, después de entrar (código QR del volante): #/r/ID en Vercel, ?r=ID en la URL de Google. */
+  function enlaceRegistro(id) {
+    var base = String((E.ini && E.ini.config && E.ini.config.url_app) || '');
+    if (!base || !/^[A-Za-z0-9_-]{1,60}$/.test(String(id || ''))) return '';
+    return /\/exec\b|script\.google/.test(base) ? base.replace(/[?#].*$/, '') + '?r=' + id : base.replace(/#.*$/, '').replace(/\/+$/, '') + '/#/r/' + id;
+  }
+  function esActivo(r) { return r.estatus === 'Pendiente' || r.estatus === 'En trámite'; }
+  /** Sábado, domingo o día inhábil de Configuración. */
+  function esDiaInhabil(iso) {
+    var p = String(iso || '').split('-');
+    if (p.length !== 3) return false;
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])).getDay();
+    return d === 0 || d === 6 || ((E.ini && E.ini.config.dias_inhabiles) || []).indexOf(iso) >= 0;
+  }
+  /** Aviso junto a un campo de fecha límite si cae en día inhábil. */
+  function vigilarInhabil(input, nota) {
+    var revisar = function () {
+      var v = input.value;
+      nota.textContent = v && esDiaInhabil(v) ? 'Ojo: el ' + fechaCorta(v) + ' es inhábil (fin de semana o día inhábil de Configuración).' : '';
+      nota.classList.toggle('oculto', !nota.textContent);
+    };
+    input.addEventListener('input', revisar); input.addEventListener('change', revisar);
+    revisar();
+    return nota;
   }
 
   var pila = [];

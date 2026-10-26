@@ -111,6 +111,59 @@ Mientras está prendido:
   pregunta **no** alarga la sesión).
 - Prenderlo, apagarlo o cambiar el mensaje queda en la Bitácora.
 
+## Apartar número
+
+Así trabajan: primero se pide el número y después se escribe el oficio. En **Oficios
+salientes**, **«Apartar número»** da el siguiente consecutivo al instante (de 1 a 20 a la
+vez) con su número oficial, y se puede anotar para qué es («respuesta a la Alcaldía»).
+
+- El registro queda **«por completar»**: sin asunto, como Pendiente y con quién lo apartó
+  en las observaciones. Se completa con **«Completar»** (en su detalle), que abre el
+  formulario con todo lo demás.
+- El portal le recuerda a cada quien sus números apartados sin completar; la libreta
+  tiene el indicador y el filtro **«Por completar»** y la tarjeta lo cuenta.
+- Lo que el minutario ya traía como «número apartado sin datos» también cuenta.
+- Si al final no se usa, un administrador lo **cancela** con su motivo: el número no se
+  vuelve a usar.
+
+## Capturar más rápido
+
+- **Lo de siempre**: en un registro nuevo, la firma (en lo recibido, a quién va dirigido)
+  y quién elaboró salen como en tu último registro de esa libreta. Arriba del formulario
+  se dice de cuál se tomaron.
+- **«Guardar y capturar otro»**: guarda y deja listo otro formulario, sin abrir el detalle.
+- **Arrastrar el escaneo**: en computadora, suelta el PDF o la imagen sobre «Documento» o
+  «Acuse» en el detalle, o sobre el formulario. Si ya había archivo, pregunta antes.
+- Si la fecha límite cae en fin de semana o día inhábil, el formulario lo avisa.
+
+## Seguimiento: Atendido, notas, calendario y volante con QR
+
+- **Atendido en un toque**: en Mis asuntos, Pendientes y Calendario, cada asunto abierto
+  tiene su botón «Atendido» (quien captura en esa libreta).
+- **Deshacer**: después de «Atendido» o de un cambio en lote, el aviso trae «Deshacer»
+  unos segundos. Regresa todo como estaba (estatus, fecha de atención, turno) si nadie
+  más lo volvió a tocar, y queda en la Bitácora.
+- **Notas de seguimiento**: en el detalle de cada registro, «Agregar nota» («Se llamó al
+  enlace», «Pidieron prórroga»). Quedan con nombre y fecha, no se editan ni se borran
+  (viven en la Bitácora). Las agrega quien captura o la persona a quien se le turnó.
+- **Calendario** (tarjeta en Seguimiento): las fechas límite del mes por día, en color
+  según vencido, vence hoy, en 2 días hábiles o más adelante; fines de semana y días
+  inhábiles rayados; «Solo lo mío» e «Incluir atendidos». Al tocar un día se ve la lista.
+  Avisa si hay vencidos de meses anteriores.
+- **Volante con código QR**: el volante impreso trae un código que, con el celular, abre
+  ese registro (pide entrar primero). Para que apunte a Vercel, pon la dirección en
+  **Configuración → Dirección pública**; si no, apunta a la URL de Google.
+- Los **correos de turno** de un solo asunto traen el botón «Abrir el asunto».
+
+## Ordenar, filtros y ayuda
+
+- **Ordenar**: toca el título de una columna (No., Asunto, persona, fecha, Estatus); otra
+  vez para invertir. En celular, con la lista «Ordenar».
+- Cada libreta **recuerda su filtro y su orden** en ese equipo. Cuando hay filtros
+  aparece **«Quitar filtros»**, para que nadie piense que «faltan» registros.
+- **Ayuda** (arriba en el portal): «Qué hay de nuevo» (sale sola una vez por versión) y
+  «Primeros pasos» (sale sola la primera vez que alguien entra).
+
 ## Cambiar varios a la vez
 
 En cada libreta, **«Seleccionar»** pone una casilla en cada renglón (y una arriba para
@@ -312,6 +365,9 @@ con) y **Archivos** (documento escaneado y acuse: PDF, JPG o PNG hasta 10 MB).
 | Buscador general (en sus libretas) | ✔ | ✔ | ✔ |
 | Duplicar un registro, tomar foto con el celular | ✔ | ✔ | — |
 | Cambiar varios a la vez, borrador del oficio en Word | ✔ | ✔ | — |
+| Apartar número, «Atendido» en un toque, deshacer | ✔ | ✔ | — |
+| Notas de seguimiento | ✔ | ✔ | en lo que le turnaron |
+| Calendario de fechas límite | ✔ | ✔ | ✔ |
 | Mi cuenta: contraseña, dos pasos, correo para avisos | ✔ | ✔ | ✔ |
 | Modo mantenimiento, respaldo completo en Excel | ✔ | — | — |
 | Imprimir volante de recepción | ✔ | ✔ | ✔ |
@@ -423,7 +479,8 @@ app hace las menos vueltas posibles y no hace esperar cuando ya tiene los datos:
   oficio busca solo sus renglones en la bitácora (no la lee completa, que crece todos
   los días).
 - Lo que se guarda en memoria es **solo de esa pestaña** y se borra al salir o al
-  cambiar de usuario. Nada se guarda en el disco del equipo.
+  cambiar de usuario. Los datos de los oficios nunca se guardan en el disco del equipo;
+  solo preferencias (filtros, orden, la ayuda ya vista y, si se pide, el usuario).
 
 Con un retraso simulado de 1.5 s por llamada (`CG_RETRASO_MS=1500 npm run local`):
 
@@ -525,8 +582,8 @@ corre en Vercel (`doPost` en Servidor.gs). Las dos rutas pasan por la misma `api
 opencv-python-headless para la del código QR; sin ellos esas pruebas se saltan):
 
 ```bash
-npm test               # 108 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
-npm run e2e            # recorrido en Chromium de lo nuevo (Vercel con su CSP y Apps Script); capturas en capturas/1.7.0/
+npm test               # 120 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
+npm run e2e            # recorrido en Chromium de lo nuevo (Vercel con su CSP y Apps Script); capturas en capturas/<versión>/
 npm run empaquetar     # .zip del código sin base/, capturas/ ni credenciales, junto a la carpeta del proyecto
 npm run local          # la app en http://localhost:4321 con la base migrada
                        #   CG_RETRASO_MS=1500 → cada llamada tarda como en Google

@@ -140,7 +140,7 @@
         return h('div', { class: 'pend__i', tabindex: '0', onclick: function () { abrirDetalle(r.id, r); }, onkeydown: function (ev) { if (ev.key === 'Enter') abrirDetalle(r.id, r); } },
           h('div', null, h('div', { class: 't-num' }, etiquetaNum(r)), h('div', { class: 'pend__tipo' }, tipoDef(r.tipo).singular)),
           h('div', null, h('div', null, r.asunto || 'Sin asunto'), h('div', { class: 'item__meta' }, [r.numero, conPersona ? per : null, r.turnado_a ? 'Turnado a: ' + r.turnado_a : null, fechaCorta(r.fecha_recepcion || r.fecha)].filter(Boolean).join(' · '))),
-          h('div', { style: { display: 'grid', gap: '4px', justifyItems: 'end' } }, r.estatus ? insEstatus(r.estatus) : null, insVence(r)));
+          h('div', { class: 'pend__der' }, porCompletar(r) ? insCompletar() : r.estatus ? insEstatus(r.estatus) : null, insVence(r), botonAtendido(r)));
       }
       var limite = 150;
       cont.appendChild(h('section', { class: 'tarjeta' }, h('h2', null, icono('reloj'), 'Por atender', h('span', { class: 'ins' }, p.porAtender.length)),
@@ -197,11 +197,150 @@
             return h('div', { class: 'pend__i', tabindex: '0', onclick: function () { abrirDetalle(r.id, r); }, onkeydown: function (ev) { if (ev.key === 'Enter') abrirDetalle(r.id, r); } },
               h('div', null, h('div', { class: 't-num' }, etiquetaNum(r)), h('div', { class: 'pend__tipo' }, tipoDef(r.tipo).singular)),
               h('div', null, h('div', null, r.asunto || 'Sin asunto'), h('div', { class: 'item__meta' }, [r.numero, per, r.fecha_limite ? 'Límite: ' + fechaCorta(r.fecha_limite) : null, fechaCorta(r.fecha_recepcion || r.fecha)].filter(Boolean).join(' · '))),
-              h('div', { style: { display: 'grid', gap: '4px', justifyItems: 'end' } }, r.estatus ? insEstatus(r.estatus) : null, insVence(r)));
+              h('div', { class: 'pend__der' }, porCompletar(r) ? insCompletar() : r.estatus ? insEstatus(r.estatus) : null, insVence(r), botonAtendido(r)));
           }) : h('div', { class: 'vacio' }, g.vacio),
           lista.length > limite ? h('div', { class: 'vacio' }, 'Y ' + (lista.length - limite) + ' más.') : null));
       });
       if (m.total > m.asuntos.length) cont.appendChild(h('p', { class: 'conteo' }, 'Se muestran los ' + m.asuntos.length + ' más recientes de ' + m.total + '.'));
+    }
+  };
+
+  /* ─────────── «Atendido» en un toque (Mis asuntos, Pendientes y Calendario) ─────────── */
+  // Usa el mismo cambio en lote del servidor (con un solo registro): queda en la
+  // Bitácora, guarda la fecha de atención y el aviso trae «Deshacer».
+  function botonAtendido(r) {
+    if (!esActivo(r) || porCompletar(r) || !puedeCapturar(r.tipo) || !tiene('guardarLote')) return null;
+    var b = h('button', { class: 'btn btn--chico btn--atender', type: 'button', title: 'Marcar como atendido', 'aria-label': 'Marcar ' + etiquetaNum(r) + ' como atendido', onclick: function (ev) {
+      ev.stopPropagation();
+      b.disabled = true;
+      llamar('guardarLote', { ids: [r.id], cambios: { estatus: 'Atendido' } }).then(function (res) {
+        (res.registros || []).forEach(actualizarEnLista);
+        E.iniT = 0;
+        if (!res.cambiados) {
+          b.disabled = false;
+          aviso('No se cambió: ' + ((res.omitidos && res.omitidos[0] && res.omitidos[0].motivo) || 'ya estaba así') + '.', 'info');
+          return;
+        }
+        // Al instante en la pantalla; el servidor confirma en segundo plano
+        if (E.pend) E.pend.datos.porAtender = E.pend.datos.porAtender.filter(function (x) { return x.id !== r.id; });
+        if (E.mis) E.mis.datos.asuntos.forEach(function (x) { if (x.id === r.id) x.estatus = 'Atendido'; });
+        aviso('Atendido: ' + tipoDef(r.tipo).singular.toLowerCase() + ' ' + etiquetaNum(r) + '.', 'ok', null, ofrecerDeshacer(res, recargarSeguimiento));
+        recargarSeguimiento();
+      }).catch(function (e) { b.disabled = false; fallo(e); });
+    } }, icono('check'), h('span', null, 'Atendido'));
+    return b;
+  }
+  function recargarSeguimiento() { if (E.vista === 'pendientes' || E.vista === 'misAsuntos' || E.vista === 'calendario') irA(E.vista, null, { sinHistorial: true }); }
+
+  /* ───────────────────────── Calendario de fechas límite ───────────────────────── */
+  // Se arma con lo que la página ya tiene en memoria (listas del año y Pendientes,
+  // que trae lo abierto de años anteriores). Lo que falte se pide sin hacer esperar.
+  var DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  var DIAS_LARGOS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  function isoDe(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function fechaLocal(iso) { var p = iso.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+  function diaLargo(iso) { var d = fechaLocal(iso); return DIAS_LARGOS[(d.getDay() + 6) % 7] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()]; }
+  function esInhabil(iso) { return esDiaInhabil(iso); }
+  function estadoLimite(r, hoy) {
+    if (!esActivo(r)) return 'atendido';
+    if (r.fecha_limite < hoy) return 'vencido';
+    if (r.fecha_limite === hoy) return 'hoy';
+    return r.fecha_limite <= sumarHabiles(hoy, 2) ? 'pronto' : 'despues';
+  }
+  var ESTADOS_CAL = { vencido: 'Vencido', hoy: 'Vence hoy', pronto: 'En 2 días hábiles', despues: 'Más adelante', atendido: 'Atendido o concluido' };
+
+  function registrosConLimite() {
+    var porId = {};
+    E.ini.orden.forEach(function (t) {
+      var c = E.listas[t + E.ini.anioActual];
+      (c ? c.lista : []).forEach(function (r) { if (r.fecha_limite && r.estatus !== 'Cancelado') porId[r.id] = r; });
+    });
+    if (E.pend) E.pend.datos.porAtender.forEach(function (r) { if (r.fecha_limite && !porId[r.id]) porId[r.id] = r; });
+    return Object.keys(porId).map(function (k) { return porId[k]; });
+  }
+
+  vistas.calendario = function () {
+    var hoy = hoyIso();
+    if (!E.cal) E.cal = { mes: hoy.slice(0, 7), dia: hoy, mios: false, atendidos: false };
+    var cont = h('div', { class: 'cal' });
+    marco('calendario').appendChild(h('div', null, h('div', { class: 'titulo-vista' }, h('h1', null, 'Calendario'),
+      h('span', { class: 'sub' }, 'Las fechas límite de tus libretas')), cont));
+    pintar();
+    // Lo que no estaba en memoria se trae en segundo plano
+    var gen = E.gen;
+    var faltan = E.ini.orden.some(function (t) { return !E.listas[t + E.ini.anioActual]; });
+    var pide = [];
+    if (faltan && tiene('listarTodo')) {
+      var enviado = Date.now();
+      pide.push(llamar('listarTodo', null, { silencioso: true }).then(function (p) { Object.keys(p.listas || {}).forEach(function (t) { recibirLista(t, p.anio, p.listas[t], enviado); }); }));
+    }
+    if (!E.pend) pide.push(llamar('pendientes', null, { silencioso: true }).then(function (p) { E.pend = { datos: p, firma: JSON.stringify(p) }; }));
+    if (pide.length) Promise.all(pide).then(function () { if (gen === E.gen && E.vista === 'calendario' && cont.isConnected) pintar(); }).catch(function () { /* se queda con lo que hay */ });
+
+    function pintar() {
+      var c = E.cal, todos = registrosConLimite().filter(function (r) {
+        if (c.mios && !esMio(r)) return false;
+        return c.atendidos || esActivo(r);
+      });
+      var porDia = {};
+      todos.forEach(function (r) { (porDia[r.fecha_limite] = porDia[r.fecha_limite] || []).push(r); });
+      Object.keys(porDia).forEach(function (k) { porDia[k].sort(function (a, b) { return a.tipo < b.tipo ? -1 : a.tipo > b.tipo ? 1 : a.consecutivo - b.consecutivo; }); });
+      var vencidosAntes = todos.filter(function (r) { return esActivo(r) && r.fecha_limite < c.mes + '-01' && r.fecha_limite < hoy; }).length;
+      var p = c.mes.split('-'), primero = new Date(Number(p[0]), Number(p[1]) - 1, 1);
+      var diasMes = new Date(Number(p[0]), Number(p[1]), 0).getDate(), hueco = (primero.getDay() + 6) % 7;
+      var mover = function (n) { var d = new Date(Number(p[0]), Number(p[1]) - 1 + n, 1); c.mes = isoDe(d).slice(0, 7); c.dia = c.mes === hoy.slice(0, 7) ? hoy : c.mes + '-01'; pintar(); };
+      var casilla = function (texto, clave) {
+        return h('label', { class: 'casilla' }, h('input', { type: 'checkbox', checked: !!c[clave], onchange: function () { c[clave] = this.checked; pintar(); } }), texto);
+      };
+      vaciar(cont);
+      cont.appendChild(h('div', { class: 'cal__barra tarjeta' },
+        h('div', { class: 'cal__nav' },
+          h('button', { class: 'icono-btn', type: 'button', 'aria-label': 'Mes anterior', onclick: function () { mover(-1); } }, icono('atras')),
+          h('h2', { class: 'cal__mes', 'aria-live': 'polite' }, MESES[primero.getMonth()].charAt(0).toUpperCase() + MESES[primero.getMonth()].slice(1) + ' ' + p[0]),
+          h('button', { class: 'icono-btn', type: 'button', 'aria-label': 'Mes siguiente', onclick: function () { mover(1); } }, icono('siguiente')),
+          c.mes !== hoy.slice(0, 7) ? h('button', { class: 'btn btn--chico', type: 'button', onclick: function () { c.mes = hoy.slice(0, 7); c.dia = hoy; pintar(); } }, 'Hoy') : null),
+        h('div', { class: 'cal__filtros' }, tiene('misAsuntos') ? casilla('Solo lo mío', 'mios') : null, casilla('Incluir atendidos', 'atendidos'))));
+      if (vencidosAntes) {
+        cont.appendChild(h('div', { class: 'alerta alerta--error alerta--accion' }, icono('alerta'),
+          h('div', null, h('strong', null, vencidosAntes + (vencidosAntes === 1 ? ' asunto vencido' : ' asuntos vencidos') + ' de meses anteriores'), ' siguen abiertos.'),
+          h('button', { class: 'btn btn--chico', type: 'button', onclick: function () { irA(c.mios ? 'misAsuntos' : 'pendientes'); } }, 'Verlos')));
+      }
+      var rejilla = h('div', { class: 'cal__rejilla', role: 'grid', 'aria-label': 'Fechas límite del mes' });
+      DIAS_CORTOS.forEach(function (d, i) { rejilla.appendChild(h('div', { class: 'cal__sem' + (i > 4 ? ' cal__sem--fin' : ''), role: 'columnheader' }, d)); });
+      for (var i = 0; i < hueco; i++) rejilla.appendChild(h('div', { class: 'cal__vacio', 'aria-hidden': 'true' }));
+      for (var dia = 1; dia <= diasMes; dia++) (function (dia) {
+        var iso = c.mes + '-' + ('0' + dia).slice(-2), lista = porDia[iso] || [];
+        var cuenta = {};
+        lista.forEach(function (r) { var e = estadoLimite(r, hoy); cuenta[e] = (cuenta[e] || 0) + 1; });
+        var peor = ['vencido', 'hoy', 'pronto', 'despues', 'atendido'].filter(function (e) { return cuenta[e]; })[0];
+        rejilla.appendChild(h('button', { type: 'button', role: 'gridcell',
+          class: 'cal__dia' + (iso === hoy ? ' cal__dia--hoy' : '') + (iso === c.dia ? ' cal__dia--sel' : '') + (esInhabil(iso) ? ' cal__dia--inhabil' : '') + (peor ? ' cal__dia--' + peor : ''),
+          'aria-pressed': iso === c.dia ? 'true' : 'false',
+          'aria-label': diaLargo(iso) + (lista.length ? ': ' + lista.length + (lista.length === 1 ? ' fecha límite' : ' fechas límite') : '') + (esInhabil(iso) ? ' (inhábil)' : ''),
+          onclick: function () { c.dia = iso; pintar(); } },
+          h('span', { class: 'cal__num' }, dia),
+          lista.length ? h('span', { class: 'cal__cuenta cal__cuenta--' + peor }, lista.length) : null,
+          h('span', { class: 'cal__chips' }, lista.slice(0, 3).map(function (r) {
+            return h('span', { class: 'cal__chip cal__chip--' + estadoLimite(r, hoy) }, r.tipo + ' ' + pad3(r.consecutivo));
+          }), lista.length > 3 ? h('span', { class: 'cal__mas' }, '+' + (lista.length - 3)) : null)));
+      })(dia);
+      for (var j = (hueco + diasMes) % 7; j && j < 7; j++) rejilla.appendChild(h('div', { class: 'cal__vacio', 'aria-hidden': 'true' }));   // completa la última semana
+      cont.appendChild(h('div', { class: 'tarjeta cal__marco' }, rejilla,
+        h('div', { class: 'cal__leyenda' }, ['vencido', 'hoy', 'pronto', 'despues'].concat(c.atendidos ? ['atendido'] : []).map(function (e) {
+          return h('span', { class: 'cal__ley' }, h('span', { class: 'cal__punto cal__punto--' + e }), ESTADOS_CAL[e]);
+        }), h('span', { class: 'cal__ley' }, h('span', { class: 'cal__punto cal__punto--inhabil' }), 'Inhábil'))));
+      // Lo del día elegido
+      var delDia = c.dia.slice(0, 7) === c.mes ? porDia[c.dia] || [] : [];
+      cont.appendChild(h('section', { class: 'tarjeta cal__lista' },
+        h('h2', null, icono('calendario'), diaLargo(c.dia).charAt(0).toUpperCase() + diaLargo(c.dia).slice(1), h('span', { class: 'ins' }, delDia.length),
+          esInhabil(c.dia) ? h('span', { class: 'ins' }, 'Inhábil') : null),
+        delDia.length ? delDia.map(function (r) {
+          var per = lineas(r.tipo === 'OFS' ? r.dirigido_a : r.firma).primera;
+          return h('div', { class: 'pend__i', tabindex: '0', onclick: function () { abrirDetalle(r.id, r); }, onkeydown: function (ev) { if (ev.key === 'Enter') abrirDetalle(r.id, r); } },
+            h('div', null, h('div', { class: 't-num' }, etiquetaNum(r)), h('div', { class: 'pend__tipo' }, tipoDef(r.tipo).singular)),
+            h('div', null, h('div', null, r.asunto || 'Sin asunto'), h('div', { class: 'item__meta' }, [r.numero, per, r.turnado_usuario ? 'Responsable: ' + (r.turnado_usuario === E.ini.yo.usuario ? 'tú' : r.turnado_usuario) : r.turnado_a ? 'Turnado a: ' + r.turnado_a : null].filter(Boolean).join(' · '))),
+            h('div', { class: 'pend__der' }, porCompletar(r) ? insCompletar() : r.estatus ? insEstatus(r.estatus) : null, insVence(r), botonAtendido(r)));
+        }) : h('div', { class: 'vacio' }, c.dia.slice(0, 7) === c.mes ? 'Nada vence este día.' : 'Elige un día del mes.')));
     }
   };
 
@@ -220,7 +359,7 @@
     tarde: { color: '#d9a21b', tinta: '#3b2a00', txt: 'Fuera de plazo', marca: '!' },
     vencido: { color: '#e5074c', tinta: '#fff', txt: 'Vencido sin atender', marca: '✕' }
   };
-  var TINTA = '#2d2a2e', TINTA3 = '#7b7e80', REJILLA = '#ece4eb';
+  var TINTA = '#2d2a2e', TINTA3 = '#696b6d', REJILLA = '#ece4eb';
 
   function sv(tag, attrs) {
     var el = document.createElementNS(SVGNS, tag);

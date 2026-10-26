@@ -275,7 +275,7 @@ test("Mis asuntos: lo turnado a mí, con vencidos y lo que vence hoy, en el port
   const m = e.api(ana, "misAsuntos").datos;
   assert.deepEqual(m.asuntos.map((x) => x.asunto), ["Vencido", "Vence hoy", "Después", "Ya atendido"]);
   const ind = e.api(ana, "indicadores").datos;
-  assert.deepEqual(ind.mios, { total: 4, porAtender: 3, vencidos: 1, venceHoy: 1 });
+  assert.deepEqual(ind.mios, { total: 4, porAtender: 3, vencidos: 1, venceHoy: 1, apartados: 0 });
   assert.equal(ind.porTipo.OFE.mios, 4);
   assert.equal(e.api(e.admin, "indicadores").datos.mios.total, 0, "al admin no le turnaron nada");
   // y la lista de la libreta trae el turno para el filtro «Turnados a mí»
@@ -292,7 +292,7 @@ test("nadie ve asuntos de libretas que no tiene, aunque se los hayan turnado", (
   e.api(e.admin, "guardarUsuario", { usuario: "ana", nombre: "Persona ana", rol: "captura", tipos: ["CIR"] });
   const ana2 = entrar(e, "ana");
   assert.equal(e.api(ana2, "misAsuntos").datos.asuntos.length, 0);
-  assert.deepEqual(e.api(ana2, "indicadores").datos.mios, { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0 });
+  assert.deepEqual(e.api(ana2, "indicadores").datos.mios, { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, apartados: 0 });
   assert.equal(e.api(ana2, "obtener", { id: ent.id }).codigo, "PERMISO");
   assert.equal(e.api(ana2, "listar", { tipo: "OFE", anio: ANIO }).codigo, "PERMISO");
   // 2) Alguien escribe a mano en la hoja un turno de otra libreta

@@ -18,6 +18,7 @@
     misAsuntos: { titulo: 'Mis asuntos', icono: 'diana', color: 'verde', ruta: 'mis-asuntos', accion: 'misAsuntos' },
     informes: { titulo: 'Informes', icono: 'grafica', color: 'cafe', accion: 'informes' },
     pendientes: { titulo: 'Pendientes', icono: 'alarma', color: 'guinda' },
+    calendario: { titulo: 'Calendario', icono: 'calendario', color: 'azul' },
     directorio: { titulo: 'Directorio', icono: 'contactos', color: 'azul' },
     usuarios: { titulo: 'Usuarios', icono: 'usuarios', color: 'guinda' },
     bitacora: { titulo: 'Bitácora', icono: 'pulso', color: 'azul' },
@@ -56,6 +57,17 @@
     irA(desde ? desde.vista : 'inicio', desde ? desde.tipo : null, { reemplazar: true });
     vigilarSesion();
     precargar();
+    // Enlace directo a un registro (#/r/ID en Vercel, ?r=ID en la URL de Google): el código QR del volante
+    var abrirId = desde && desde.abrir;
+    if (abrirId) abrirDesdeEnlace(abrirId);
+    else if (!usaHistorial && window.google && google.script && google.script.url) {
+      try { google.script.url.getLocation(function (l) { var r = l && l.parameter && l.parameter.r; if (r && /^[A-Za-z0-9_-]{1,60}$/.test(r)) abrirDesdeEnlace(r); }); } catch (e) { /* sin ubicación */ }
+    }
+    if (!abrirId) setTimeout(novedadesSiToca, 700);
+  }
+
+  function abrirDesdeEnlace(id) {
+    abrirDetalle(id).catch(function () {});
   }
 
   function cargarInicio() {
@@ -103,6 +115,8 @@
   function leerRuta() {
     var r = String(location.hash || '').replace(/^#\/?/, '');
     if (!r) return null;
+    var directo = /^r\/([A-Za-z0-9_-]{1,60})$/.exec(r);
+    if (directo) return { vista: 'inicio', abrir: directo[1] };
     for (var t in SLUG) if (SLUG[t] === r && E.ini.orden.indexOf(t) >= 0) return { vista: 'libreta', tipo: t };
     for (var k in MODULOS) {
       var m = MODULOS[k];
@@ -121,9 +135,23 @@
   });
 
   var vistas = {};
+  /** Filtros y orden que dejó la persona en cada libreta (en este equipo). */
+  function filtrosGuardados(tipo) { var f = pref('filtros') || {}; return f[tipo] || {}; }
+  function guardarFiltros(tipo, cambios) {
+    var f = pref('filtros') || {}, x = f[tipo] || {};
+    Object.keys(cambios).forEach(function (k) { if (cambios[k]) x[k] = cambios[k]; else delete x[k]; });
+    f[tipo] = x;
+    pref('filtros', f);
+  }
   function irA(v, tipo, o) {
     o = o || {};
-    if (tipo) { if (E.tipo !== tipo) { E.filtros = { q: '', estatus: '', acuse: '' }; E.mostrar = 60; } E.tipo = tipo; }
+    if (tipo) {
+      if (E.filtrosTipo !== tipo) {
+        var g = filtrosGuardados(tipo);
+        E.filtros = { q: '', estatus: g.estatus || '', acuse: g.acuse || '' }; E.mostrar = 60; E.filtrosTipo = tipo;
+      }
+      E.tipo = tipo;
+    }
     E.vista = v;
     cerrarPanel();
     if (usaHistorial && !o.sinHistorial) {
@@ -164,6 +192,7 @@
         h('div', { class: 'pcab__user' },
           promptInstalar ? h('button', { class: 'pcab__instalar', onclick: instalarApp, title: 'Instalar Control de Gestión como app' }, icono('bajar'), 'Instalar app') : null,
           h('span', { class: 'avatar' }, iniciales(yo.nombre)), h('span', { class: 'pcab__nombre' }, yo.nombre), h('span', { class: 'pcab__nivel' }, yo.rolNombre),
+          h('button', { class: 'pcab__cuenta', title: 'Cómo se usa y qué hay de nuevo', 'aria-label': 'Ayuda', onclick: function () { mostrarGuia('novedades'); } }, icono('ayuda'), h('span', null, 'Ayuda')),
           h('button', { class: 'pcab__cuenta', title: 'Contraseña, verificación en dos pasos y correo', 'aria-label': 'Mi cuenta', onclick: function () { modalMiCuenta(); } }, icono('llave'), h('span', null, 'Mi cuenta')),
           h('button', { class: 'pcab__salir', onclick: salir }, 'Cerrar sesión'))),
       h('main', { class: 'principal principal--portal' },
@@ -211,6 +240,15 @@
             mios.venceHoy ? mios.venceHoy + (mios.venceHoy === 1 ? ' que vence hoy' : ' que vencen hoy') : ''].filter(Boolean).join(' y ')),
             h('small', null, 'Están en «Mis asuntos».')), icono('siguiente')));
       }
+      if (mios && mios.apartados && tiene('apartar')) {
+        aviso.appendChild(h('button', { class: 'pav pav--apartado', onclick: function () {
+          var t = ini.orden.filter(function (x) { return ini.todosTipos[x].numeroAuto; })[0] || 'OFS';
+          E.tipo = t; E.filtrosTipo = t; E.filtros = { q: '', estatus: '(completar)', acuse: '' }; E.mostrar = 60;
+          irA('libreta', t);
+        } }, icono('apartar'),
+          h('span', { class: 'pav__txt' }, h('strong', null, 'Tienes ' + mios.apartados + (mios.apartados === 1 ? ' número apartado' : ' números apartados') + ' por completar'),
+            h('small', null, 'Ponles el asunto en cuanto tengas el oficio (o pide que se cancelen si ya no se usan).')), icono('siguiente')));
+      }
       if (avisoGeneral) {
         aviso.appendChild(h('button', { class: 'pav', onclick: function () { irA('pendientes'); } }, icono('alarma'),
           h('span', { class: 'pav__txt' }, h('strong', null, (g.vencidos ? g.vencidos + (g.vencidos === 1 ? ' asunto vencido' : ' asuntos vencidos') : '') +
@@ -223,6 +261,7 @@
         if (d.porAtender) chips.push(d.porAtender + ' por atender');
         if (d.vencidos) chips.push(d.vencidos + (d.vencidos === 1 ? ' vencido' : ' vencidos'));
         if (t === 'OFS' && d.sinAcuse) chips.push(d.sinAcuse + ' sin acuse');
+        if (d.porCompletar) chips.push(d.porCompletar + ' por completar');
         return { titulo: ini.todosTipos[t].nombre, desc: DESC_TIPO[t], color: COLOR_TIPO[t], icono: ICONO_TIPO[t], chips: chips, ir: function () { irA('libreta', t); } };
       });
       var seguimiento = (tiene('misAsuntos') ? [{ titulo: 'Mis asuntos', desc: 'Lo que te turnaron: lo vencido, lo que vence hoy y lo que sigue.', color: 'verde', icono: 'diana',
@@ -231,6 +270,8 @@
         ir: function () { irA('misAsuntos'); } }] : []).concat([
         { titulo: 'Pendientes', desc: 'Lo que está por atender, por vencer y los oficios sin acuse.', color: 'guinda', icono: 'alarma',
           chips: (ind.porTipo && Object.keys(ind.porTipo).length ? [g.porAtender + ' por atender'] : ['Por atender']).concat(g.vencidos ? [g.vencidos + ' vencidos'] : []).concat(g.sinAcuse ? [g.sinAcuse + ' oficios sin acuse'] : []), ir: function () { irA('pendientes'); } },
+        { titulo: 'Calendario', desc: 'Las fechas límite del mes: qué vence cada día y qué ya se pasó.', color: 'azul', icono: 'calendario',
+          chips: ['Por día', 'Vencidos'].concat(tiene('misAsuntos') ? ['Solo lo mío'] : []), ir: function () { irA('calendario'); } },
         { titulo: 'Directorio', desc: 'Las personas a quienes se dirige o que firman, escritas siempre igual.', color: 'azul', icono: 'contactos',
           chips: [E.directorio.length + ' personas', 'Buscar'].concat(puedeCapturar() ? ['Agregar'] : []), ir: function () { irA('directorio'); } }
       ]).concat(tiene('informes') ? [{ titulo: 'Informes', desc: 'Registros por mes, remitentes y destinatarios, tiempo de respuesta y atención a tiempo.', color: 'cafe', icono: 'grafica',
@@ -312,7 +353,7 @@
           h('h3', { class: 'busq__gt' }, h('span', { class: 'busq__ico' }, icono(ICONO_TIPO[g.tipo])), def.nombre, h('span', { class: 'ins' }, g.total)),
           lista, verMas,
           g.total > g.registros.length ? h('button', { type: 'button', class: 'busq__mas', onclick: function () {
-            E.tipo = g.tipo; E.filtros = { q: q, estatus: '', acuse: '' }; E.mostrar = 60;
+            E.tipo = g.tipo; E.filtrosTipo = g.tipo; E.filtros = { q: q, estatus: '', acuse: '' }; E.mostrar = 60;
             irA('libreta', g.tipo);
           } }, (g.registros.length ? 'Ver los ' + g.total + ' en la libreta' : g.total + ' más en esta libreta: verlos') + ' →') : null));
       });
@@ -332,5 +373,65 @@
       h('div', { class: 'busq__caja' }, icono('buscar'), input,
         h('button', { type: 'button', class: 'btn btn--prim busq__btn', onclick: function () { buscar(true); } }, 'Buscar')),
       res);
+  }
+
+  /* ───────────────────────── Ayuda: novedades y primeros pasos ───────────────────────── */
+  // Se abre sola una vez por versión (la primera vez que alguien entra, en vez de
+  // las novedades salen los primeros pasos). Siempre está en «Ayuda», arriba.
+  function novedadesSiToca() {
+    if (!E.ini || E.vista !== 'inicio' || pila.length || panelActual) return;
+    var visto = pref('visto:' + E.ini.yo.usuario);
+    if (visto === VERSION_APP) return;
+    // Quien entra por primera vez (con contraseña temporal) ve los primeros pasos; los demás, lo nuevo
+    mostrarGuia(!visto && E.nuevoUsuario ? 'inicio' : 'novedades');
+  }
+
+  function puntosGuia(modo) {
+    var cap = puedeCapturar(), admin = esAdmin(), ofs = E.ini.orden.some(function (t) { return E.ini.todosTipos[t].numeroAuto; });
+    var p = [];
+    var poner = function (cond, ico, titulo, texto) { if (cond) p.push({ ico: ico, titulo: titulo, texto: texto }); };
+    if (modo === 'novedades') {
+      poner(cap && ofs && tiene('apartar'), 'apartar', 'Apartar número', 'En Oficios salientes, «Apartar número» te da el siguiente número al instante, aunque todavía no tengas el oficio. Queda «por completar» hasta que le pongas el asunto.');
+      poner(cap, 'copiar', 'Lo de siempre', 'Al capturar, la firma (o el destinatario) y quién elaboró salen como en tu último registro. Con «Guardar y capturar otro» queda listo el siguiente.');
+      poner(cap, 'subir', 'Arrastra el escaneo', 'En computadora, suelta el PDF o la imagen sobre el registro o sobre el formulario.');
+      poner(cap && tiene('guardarLote'), 'check', 'Atendido en un toque', 'En «Mis asuntos» y en «Pendientes», cada asunto tiene su botón «Atendido». Si te equivocas, el aviso trae «Deshacer».');
+      poner(true, 'calendario', 'Calendario', 'Las fechas límite del mes: qué vence cada día y qué ya se pasó. Está en Seguimiento.');
+      poner(tiene('agregarNota'), 'nota', 'Notas de seguimiento', 'En cada registro, anota lo que va pasando («Se llamó al enlace», «Pidieron prórroga»). Quedan con tu nombre y la fecha.');
+      poner(true, 'imprimir', 'Volante con código QR', 'El volante impreso trae un código: escanéalo con el celular y abre el registro directo.');
+      poner(true, 'ordenar', 'Ordenar y filtros recordados', 'Toca el título de una columna para ordenar. Cada libreta recuerda su último filtro en este equipo.');
+    } else {
+      poner(true, 'libro', 'El portal', 'Cada tarjeta abre una libreta o una pantalla. Los números de cada tarjeta te dicen qué está por atender, vencido o sin acuse.');
+      poner(true, 'buscar', 'Buscar', 'El buscador de arriba busca en todas tus libretas a la vez, sin importar acentos ni mayúsculas.');
+      poner(cap, 'mas', 'Registrar', 'En cada libreta, «Nuevo…». En Oficios salientes el número sale solo al guardar; si lo necesitas antes, «Apartar número».');
+      poner(cap, 'subir', 'Escaneos', 'Sube el PDF, toma una foto con el celular o suelta el archivo sobre el registro.');
+      poner(true, 'diana', 'Mis asuntos', 'Lo que te turnan aparece en «Mis asuntos», con lo vencido y lo que vence hoy hasta arriba.');
+      poner(true, 'nota', 'Notas', 'En el detalle de un registro puedes dejar notas de seguimiento (si capturas o si te lo turnaron).');
+      poner(admin, 'usuarios', 'Administración', 'Usuarios (altas y permisos), Bitácora (quién hizo qué) y Configuración (plazos, días inhábiles, avisos).');
+      poner(true, 'llave', 'Tu cuenta', 'En «Mi cuenta» cambias tu contraseña y activas la verificación en dos pasos.');
+    }
+    return p;
+  }
+
+  function mostrarGuia(modo) {
+    var cuerpo = h('div', { class: 'guia' });
+    var pestanas = h('div', { class: 'guia__pest', role: 'tablist' });
+    function pintar(m) {
+      modo = m;
+      vaciar(pestanas);
+      [['novedades', 'Qué hay de nuevo'], ['inicio', 'Primeros pasos']].forEach(function (x) {
+        pestanas.appendChild(h('button', { class: 'guia__tab' + (x[0] === m ? ' activa' : ''), role: 'tab', 'aria-selected': x[0] === m ? 'true' : 'false', onclick: function () { pintar(x[0]); } }, x[1]));
+      });
+      vaciar(cuerpo).appendChild(h('p', { class: 'guia__intro' }, m === 'novedades'
+        ? 'Versión ' + VERSION_APP + ': cosas para que capturar y dar seguimiento sea más rápido.'
+        : 'Lo básico para trabajar en Control de Gestión.'));
+      cuerpo.appendChild(h('ul', { class: 'guia__lista' }, puntosGuia(m).map(function (x) {
+        return h('li', { class: 'guia__i' }, h('span', { class: 'guia__ico' }, icono(x.ico)), h('div', null, h('strong', null, x.titulo), h('p', null, x.texto)));
+      })));
+    }
+    pintar(modo || 'novedades');
+    var v = ventana({ titulo: 'Ayuda', ancho: 620, sinFoco: true, cuerpo: [pestanas, cuerpo],
+      alCerrar: function () { pref('visto:' + E.ini.yo.usuario, VERSION_APP); },
+      pie: [h('button', { class: 'btn btn--prim', onclick: function () { v.cerrar(); } }, 'Entendido')] });
+    return v;
   }
 </script>

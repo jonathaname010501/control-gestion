@@ -29,7 +29,7 @@
  * ════════════════════════════════════════════════════════════════════════
  */
 
-var VERSION = '1.7.0';   // súbela junto con VERSION_APP (App.html) en cada cambio
+var VERSION = '1.8.0';   // súbela junto con VERSION_APP (App.html) en cada cambio
 var ZONA = 'America/Mexico_City';
 var SESION_SEG = 3 * 60 * 60;      // 3 h sin actividad cierran la sesión
 var MAX_ARCHIVO_MB = 10;
@@ -103,18 +103,21 @@ function nuevaPeticion_() { MEMO_ = {}; }
 
 /* ═══════════════════════════ Entrada de la app web ═════════════════════ */
 
-function doGet() {
+function doGet(e) {
   nuevaPeticion_();
   // Si la app ya vive en otra dirección (Vercel), aquí solo se deja un enlace.
   var web = '';
-  try { web = config_().url_web || ''; } catch (e) { /* aún sin instalar */ }
+  try { web = config_().url_web || ''; } catch (e2) { /* aún sin instalar */ }
+  // ?r=ID (el código QR del volante): el enlace lleva directo a ese registro
+  var r = e && e.parameter && /^[A-Za-z0-9_-]{1,60}$/.test(String(e.parameter.r || '')) ? String(e.parameter.r) : '';
+  if (web && r) web = web.replace(/#.*$/, '').replace(/\/+$/, '') + '/#/r/' + r;
   if (web) {
     var enlace = HtmlService.createHtmlOutput('<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_top"></head>' +
       '<body style="font-family:system-ui,sans-serif;display:grid;place-content:center;min-height:90vh;text-align:center;color:#55585a">' +
       '<h2 style="color:#8f4889">Control de Gestión</h2><p>El sistema está en esta dirección:</p>' +
       '<p><a style="font-size:18px;color:#8f4889" href="' + escHtml_(web) + '">' + escHtml_(web) + '</a></p></body></html>')
       .setTitle('Control de Gestión');
-    try { enlace.setFaviconUrl(web.replace(/\/+$/, '') + '/icono-32.png'); } catch (e) { /* sin ícono */ }
+    try { enlace.setFaviconUrl(web.replace(/#.*$/, '').replace(/\/+$/, '') + '/icono-32.png'); } catch (e3) { /* sin ícono */ }
     return enlace;
   }
   // La página se arma pegando los archivos HTML del proyecto. Ojo: Google
@@ -269,7 +272,11 @@ var ACCIONES_ = {
   totpIniciar: { fn: function (yo, d) { return totpIniciar_(yo, d); } },
   totpConfirmar: { fn: function (yo, d) { return totpConfirmar_(yo, d); } },
   totpQuitar: { fn: function (yo, d) { return totpQuitar_(yo, d); } },
-  generarOficio: { fn: function (yo, d) { return generarOficio_(yo, d); }, rol: 'captura' }
+  generarOficio: { fn: function (yo, d) { return generarOficio_(yo, d); }, rol: 'captura' },
+  // 1.8.0
+  apartar: { fn: apartar_, rol: 'captura' },
+  agregarNota: { fn: agregarNota_ },          // quien captura, o la persona a quien se turnó (se revisa adentro)
+  deshacerLote: { fn: deshacerLote_, rol: 'captura' }
 };
 
 /** Acciones que este usuario puede usar. La página las consulta para mostrar
@@ -437,7 +444,8 @@ function configPublica_(cfg, yo) {
     encabezados: [cfg.encabezado_1, cfg.encabezado_2, cfg.encabezado_3].filter(Boolean),
     plantilla_OFS: cfg.plantilla_OFS, plazo_dias: cfg.plazo_dias, url_web: cfg.url_web || '',
     dias_inhabiles: diasInhabiles_(cfg), acuse_desde: fechaValida_(String(cfg.acuse_desde || '')) ? cfg.acuse_desde : '',
-    plantillaDoc: !!idPlantillaDoc_(cfg)
+    plantillaDoc: !!idPlantillaDoc_(cfg),
+    url_app: urlApp_()   // para el código QR del volante (Vercel o la URL /exec)
   };
   if (yo && yo.rol === 'admin') {
     c.avisos_correo = cfg.avisos_correo === 'SI' ? 'SI' : 'NO';
@@ -460,6 +468,9 @@ function cuentaSinAcuse_(r, corte) {
   return r.tipo === 'OFS' && r.acuse !== 'SI' && r.estatus !== 'Cancelado' && (!corte || String(r.fecha || '') >= corte);
 }
 
+/** Un número apartado que aún no se completa: sin asunto y sin cancelar. */
+function porCompletar_(r) { return !String(r.asunto || '').trim() && r.estatus !== 'Cancelado'; }
+
 /** Números de las tarjetas del portal: por libreta y en total (solo libretas propias). */
 function indicadores_(yo, regs) {
   regs = regs || tablaLectura_(HOJAS.REG).filas;
@@ -468,8 +479,8 @@ function indicadores_(yo, regs) {
   var hoy = Utilities.formatDate(new Date(), ZONA, 'yyyy-MM-dd');
   var anio = Number(hoy.slice(0, 4)), mes = hoy.slice(0, 7);
   var porTipo = {}, global = { porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0 };
-  var mios = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0 };   // «Mis asuntos»
-  yo.tipos.forEach(function (t) { porTipo[t] = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0, esteMes: 0, mios: 0 }; });
+  var mios = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, apartados: 0 };   // «Mis asuntos» y mis números apartados
+  yo.tipos.forEach(function (t) { porTipo[t] = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0, esteMes: 0, mios: 0, porCompletar: 0 }; });
   regs.forEach(function (f) {
     var r = f.o, p = porTipo[r.tipo];
     if (!p) return;   // libretas que no tiene: no cuentan aunque se las hayan turnado
@@ -487,6 +498,10 @@ function indicadores_(yo, regs) {
         if (r.fecha_limite && r.fecha_limite < hoy) mios.vencidos++;
         else if (r.fecha_limite === hoy) mios.venceHoy++;
       }
+    }
+    if (porCompletar_(r)) {
+      p.porCompletar++;
+      if (r.creado_por === yo.usuario) mios.apartados++;
     }
     // global.sinAcuse = la sección "sin acuse" de Pendientes (sin repetir lo que ya está por atender)
     if (cuentaSinAcuse_(r, corte) && !activo && Number(r.anio) >= anio - 1) global.sinAcuse++;
@@ -509,7 +524,7 @@ function directorioActivo_() {
 
 var CAMPOS_LISTA = ['id', 'tipo', 'anio', 'consecutivo', 'sufijo', 'numero', 'asunto', 'dirigido_id', 'dirigido_a', 'firma_id', 'firma',
   'fecha', 'fecha_recepcion', 'elaboro', 'acuse', 'carpeta', 'estatus', 'fecha_limite', 'turnado_a', 'relacionado_id',
-  'turnado_usuario'];
+  'turnado_usuario', 'creado_por'];
 
 function resumen_(r) {
   var o = {};
@@ -550,7 +565,8 @@ function obtener_(yo, d) {
   var f = buscarRegistro_(t, d.id);
   puedeTipo_(yo, f.o.tipo);
   var r = nombreTurno_(publico_(f.o));
-  return { registro: r, ligados: ligados_(yo, t.filas, r), historial: historial_(f.o.id, 100) };
+  var hist = historial_(f.o.id, 100);
+  return { registro: r, ligados: ligados_(yo, t.filas, r), historial: hist, notas: notasDe_(hist) };
 }
 
 /** Nombre de la persona a quien se turnó (para mostrarlo en el panel). */
@@ -600,6 +616,36 @@ function historial_(id, max) {
   return out.reverse();
 }
 
+/* ─────────── Notas de seguimiento (1.8.0) ───────────
+   Se guardan en la Bitácora (acción «nota», con el ID del registro): no se
+   pueden editar ni borrar, quedan con fecha y autor, y el historial ya sabe
+   leerlas. El registro no cambia (ni su versión), así que no estorban a
+   quien lo esté editando. */
+var MAX_NOTA = 1000;
+
+/** Las notas de un historial (del más reciente al más viejo), con el nombre de quien las escribió. */
+function notasDe_(hist) {
+  return (hist || []).filter(function (x) { return x.accion === 'nota'; }).map(function (x) {
+    var u = buscarUsuario_(x.usuario);
+    return { fecha: x.fecha, usuario: x.usuario, nombre: u ? u.nombre : x.usuario, texto: x.detalle };
+  });
+}
+
+function agregarNota_(yo, d) {
+  var texto = String(d.texto || '').replace(/\r/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+  if (texto.length < 2) throw falla_('DATOS', 'Escribe la nota.');
+  if (texto.length > MAX_NOTA) throw falla_('DATOS', 'La nota es demasiado larga (máximo ' + MAX_NOTA + ' caracteres).');
+  var r = registroPorId_(d.id);
+  puedeTipo_(yo, r.tipo);
+  // Consulta solo puede anotar en lo que le turnaron (es quien lo atiende)
+  if (yo.rol === 'consulta' && r.turnado_usuario !== yo.usuario) throw falla_('PERMISO', 'Solo quien captura o la persona a quien se turnó el asunto puede agregar notas.');
+  if (r.estatus === 'Cancelado' && yo.rol !== 'admin') throw falla_('PERMISO', 'Este registro está cancelado.');
+  bitacora_(yo.usuario, 'nota', r.id, texto);
+  SpreadsheetApp.flush();
+  var hist = historial_(r.id, 100);
+  return { historial: hist, notas: notasDe_(hist) };
+}
+
 /**
  * Guardar, cancelar y mover archivos regresan además lo que muestra el panel
  * del registro (ligados e historial), para que la página no tenga que pedirlo
@@ -613,7 +659,8 @@ function conDetalle_(fn) {
       try {
         SpreadsheetApp.flush();
         nombreTurno_(res.registro);
-        res.detalle = { ligados: ligados_(yo, MEMO_.filasReg || tabla_(HOJAS.REG).filas, res.registro), historial: historial_(res.registro.id, 100) };
+        var hist = historial_(res.registro.id, 100);
+        res.detalle = { ligados: ligados_(yo, MEMO_.filasReg || tabla_(HOJAS.REG).filas, res.registro), historial: hist, notas: notasDe_(hist) };
       } catch (e) {
         console.warn('detalle tras guardar: ' + e.message);
       }
@@ -1038,7 +1085,7 @@ function guardarLote_(yo, d) {
     var porId = {};
     t.filas.forEach(function (f) { porId[f.o.id] = f; });
     var turnoValido = {};   // tipo → ¿se puede turnar a esa persona en esa libreta?
-    var tocadas = [], entradas = [];
+    var tocadas = [], entradas = [], paraDeshacer = [];
     ids.forEach(function (id) {
       var f = porId[id];
       if (!f) { res.omitidos.push({ id: id, motivo: 'no existe' }); return; }
@@ -1053,6 +1100,7 @@ function guardarLote_(yo, d) {
       }
       if (cambios.turnado_usuario && turnoValido[r.tipo] !== true) { res.omitidos.push({ id: id, motivo: turnoValido[r.tipo], num: etiquetaNum_(r) }); return; }
       var txt = [], estatusAntes = r.estatus, turnoAntes = r.turnado_usuario || '';
+      var antes = { estatus: r.estatus || '', acuse: r.acuse || 'NO', fecha_limite: r.fecha_limite || '', turnado_usuario: turnoAntes, fecha_atencion: r.fecha_atencion || '' };
       campos.forEach(function (k) {
         if (k === 'acuse' && !propios.acuse) return;
         var nuevo = cambios[k];
@@ -1069,6 +1117,7 @@ function guardarLote_(yo, d) {
       r.modificado_en = ahora;
       r.version = Number(r.version) + 1;
       tocadas.push(f);
+      paraDeshacer.push({ id: r.id, v: r.version, a: antes });
       if (txt.length) entradas.push([yo.usuario, 'edición', r.id, txt.join(' · ') + ' (en lote)']);
       if (cambioTurno) {
         entradas.push([yo.usuario, 'turno', r.id, textoTurno_(turnoAntes, r.turnado_usuario) + ' (en lote)']);
@@ -1085,12 +1134,125 @@ function guardarLote_(yo, d) {
       }).join(', ');
       entradas.push([yo.usuario, 'edición en lote', '', tocadas.length + ' registro(s): ' + que + (res.omitidos.length ? ' · ' + res.omitidos.length + ' omitido(s)' : '')]);
       bitacoraVarias_(entradas);
+      res.deshacer = guardarDeshacer_(yo, paraDeshacer);
     }
   } finally {
     soltar_(lock);
   }
   Object.keys(turnadosA).forEach(function (u) { avisarTurno_(yo, u, turnadosA[u]); });
   return res;
+}
+
+/* ─────────── Deshacer un cambio en lote (1.8.0) ───────────
+   Lo que había antes se guarda en la caché del servidor con una clave al azar
+   (10 minutos). La página solo recibe la clave: no puede inventar valores.
+   Sirve una sola vez, solo para quien hizo el cambio, y solo en los registros
+   que nadie ha vuelto a tocar (misma versión). No manda correos. */
+var DESHACER_SEG = 600;
+
+function guardarDeshacer_(yo, items) {
+  if (!items.length) return null;
+  var valor = JSON.stringify({ u: yo.usuario, items: items });
+  if (valor.length > 95000) return null;   // demasiado grande para la caché: sin «Deshacer»
+  var clave = Utilities.getUuid().replace(/-/g, '');
+  try { CacheService.getScriptCache().put('desh:' + clave, valor, DESHACER_SEG); } catch (e) { return null; }
+  return clave;
+}
+
+function deshacerLote_(yo, d) {
+  var clave = String(d.clave || '');
+  if (!/^[a-f0-9]{32}$/.test(clave)) throw falla_('DATOS', 'Ya no se puede deshacer.');
+  var cache = CacheService.getScriptCache();
+  var res = { restaurados: 0, omitidos: [], registros: [] };
+  var lock = candado_(30000);
+  try {
+    var guardado = cache.get('desh:' + clave);
+    if (!guardado) throw falla_('DATOS', 'Ya no se puede deshacer: pasaron más de 10 minutos o ya se deshizo.');
+    var datos = JSON.parse(guardado);
+    if (datos.u !== yo.usuario) throw falla_('PERMISO', 'Solo quien hizo el cambio puede deshacerlo.');
+    cache.remove('desh:' + clave);   // una sola vez
+    var t = tabla_(HOJAS.REG), ahora = sello_(new Date()), porId = {};
+    t.filas.forEach(function (f) { porId[f.o.id] = f; });
+    var tocadas = [], entradas = [];
+    (datos.items || []).forEach(function (it) {
+      var f = porId[it.id];
+      if (!f || yo.tipos.indexOf(f.o.tipo) < 0) { res.omitidos.push({ id: it.id, motivo: 'no existe o sin acceso' }); return; }
+      var r = f.o, a = it.a || {};
+      if (Number(r.version) !== Number(it.v)) { res.omitidos.push({ id: r.id, motivo: 'alguien lo volvió a cambiar', num: etiquetaNum_(r) }); return; }
+      var txt = [], turnoAntes = r.turnado_usuario || '';
+      var limpio = {
+        estatus: ESTATUS.indexOf(a.estatus) >= 0 && a.estatus !== 'Cancelado' ? a.estatus : '',
+        acuse: a.acuse === 'SI' ? 'SI' : 'NO',
+        fecha_limite: fechaValida_(String(a.fecha_limite || '')) ? a.fecha_limite : '',
+        turnado_usuario: /^[a-z0-9][a-z0-9._-]{2,29}$/.test(String(a.turnado_usuario || '')) ? a.turnado_usuario : ''
+      };
+      Object.keys(limpio).forEach(function (k) {
+        if (String(r[k] || '') === String(limpio[k])) return;
+        if (k !== 'turnado_usuario') txt.push(k + ': «' + corta_(r[k], 60) + '» → «' + corta_(limpio[k], 60) + '»');
+        r[k] = limpio[k];
+      });
+      r.fecha_atencion = fechaValida_(String(a.fecha_atencion || '')) ? a.fecha_atencion : '';   // la de antes, tal cual
+      r.modificado_por = yo.usuario;
+      r.modificado_en = ahora;
+      r.version = Number(r.version) + 1;
+      tocadas.push(f);
+      if (txt.length) entradas.push([yo.usuario, 'edición', r.id, txt.join(' · ') + ' (deshecho)']);
+      if ((r.turnado_usuario || '') !== turnoAntes) entradas.push([yo.usuario, 'turno', r.id, textoTurno_(turnoAntes, r.turnado_usuario) + ' (deshecho)']);
+      res.registros.push(resumen_(r));
+    });
+    res.restaurados = tocadas.length;
+    if (tocadas.length) {
+      escribirVarias_(t, HOJAS.REG, tocadas);
+      entradas.push([yo.usuario, 'deshacer', '', 'Deshizo un cambio en lote: ' + tocadas.length + ' registro(s)' + (res.omitidos.length ? ' · ' + res.omitidos.length + ' sin tocar' : '')]);
+      bitacoraVarias_(entradas);
+    }
+  } finally {
+    soltar_(lock);
+  }
+  return res;
+}
+
+/* ─────────── Apartar números (1.8.0) ───────────
+   Así trabajan: primero se pide el número y después se escribe el oficio. Se
+   crea el registro con el consecutivo y el número oficial, sin asunto, como
+   «Pendiente» y con una nota de quién lo apartó. Queda «por completar» hasta
+   que alguien le pone el asunto (Editar). Si no se usa, un administrador lo
+   cancela con su motivo (el número nunca se reutiliza). */
+var MAX_APARTAR = 20;
+
+function apartar_(yo, d) {
+  var tipo = String(d.tipo || '');
+  if (!TIPOS[tipo] || !TIPOS[tipo].numeroAuto) throw falla_('DATOS', 'Solo se apartan números de ' + TIPOS.OFS.nombre.toLowerCase() + '.');
+  puedeTipo_(yo, tipo);
+  var n = d.cantidad === undefined || d.cantidad === null || d.cantidad === '' ? 1 : Math.floor(Number(d.cantidad));
+  if (!(n >= 1 && n <= MAX_APARTAR)) throw falla_('DATOS', 'Se pueden apartar de 1 a ' + MAX_APARTAR + ' números por vez.');
+  var nota = String(d.nota || '').replace(/[\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (nota.length > 300) throw falla_('DATOS', 'La nota es demasiado larga (máximo 300 caracteres).');
+  var lock = candado_(30000, true);
+  if (!lock) throw falla_('OCUPADO', 'El sistema está ocupado guardando otros registros. Espera unos segundos e intenta de nuevo.');
+  try {
+    var t = tabla_(HOJAS.REG);
+    var hoy = Utilities.formatDate(new Date(), ZONA, 'yyyy-MM-dd'), anio = Number(hoy.slice(0, 4));
+    var max = maxConsecutivo_(t, tipo, anio), ahora = sello_(new Date());
+    var nuevos = [];
+    for (var i = 0; i < n; i++) {
+      var limpio = {};
+      EDITABLES.forEach(function (c) { limpio[c] = ''; });
+      limpio.acuse = 'NO';
+      limpio.fecha = hoy;
+      limpio.estatus = 'Pendiente';
+      limpio.observaciones = 'Número apartado por ' + yo.nombre + ' el ' + hoy.split('-').reverse().join('/') + (nota ? ': ' + nota : '') + '.';
+      nuevos.push(registroNuevo_(yo, tipo, anio, max + 1 + i, limpio, ahora));
+    }
+    escribirBloque_(t.sh, HOJAS.REG, t.sh.getLastRow() + 1, nuevos);
+    var primero = nuevos[0], ultimo = nuevos[n - 1];
+    var entradas = nuevos.map(function (r) { return [yo.usuario, 'apartado', r.id, TIPOS[tipo].singular + ' ' + etiquetaNum_(r) + ' apartado' + (nota ? ': ' + nota : '')]; });
+    if (n > 1) entradas.push([yo.usuario, 'apartado', '', n + ' números apartados: del ' + (primero.numero || etiquetaNum_(primero)) + ' al ' + (ultimo.numero || etiquetaNum_(ultimo))]);
+    bitacoraVarias_(entradas);
+    return { cuantos: n, desde: primero.numero || etiquetaNum_(primero), hasta: ultimo.numero || etiquetaNum_(ultimo), registros: nuevos.map(resumen_) };
+  } finally {
+    soltar_(lock);
+  }
 }
 
 /* ─────────── Turnos a personas del sistema («Mis asuntos») ─────────── */

@@ -3,6 +3,60 @@
 Cada versión dice qué hay que hacer al publicarla. Si usas `npm run publicar`, el
 comando hace casi todo y te avisa lo que falta (ver INSTALAR.md, Parte C).
 
+## 1.8.0 · Más fácil de usar: apartar número, calendario, notas y atender en un toque
+
+**Al publicar: no hay columnas nuevas ni permisos nuevos → NO hace falta correr
+`instalar()`.** Solo se reemplaza el código y se publica la **Nueva versión** en la
+misma implementación.
+
+Cambian 10 archivos de Apps Script (ninguno nuevo): `Servidor.gs`, `Avisos.gs`,
+`App.html`, `AppEntrada.html`, `AppPortal.html`, `AppLibreta.html`, `AppDetalle.html`,
+`AppFormulario.html`, `AppInformes.html` y `Estilos.html`. Los demás quedan igual.
+
+**Para quien captura**
+
+- **Apartar número** (Oficios salientes): el siguiente número al instante, de 1 a 20
+  a la vez, con una nota de para qué. Queda «por completar» (sin asunto) hasta que se
+  captura el oficio con **Completar**; el portal le recuerda a cada quien los suyos, la
+  libreta tiene el indicador y el filtro «Por completar», y la tarjeta lo cuenta. Los
+  números apartados en el minutario (411 a 415…) también cuentan.
+- **Lo de siempre**: al capturar, la firma (en lo recibido, el destinatario) y quién
+  elaboró salen como en el último registro de esa persona en esa libreta.
+- **Guardar y capturar otro**: guarda y abre otro formulario limpio, sin pasar por el detalle.
+- **Arrastrar el escaneo**: en computadora, soltar el PDF o la imagen sobre el registro
+  (Documento o Acuse) o sobre el formulario. Si ya había archivo, pregunta antes de reemplazarlo.
+- Aviso cuando la fecha límite que se escribe cae en fin de semana o día inhábil.
+
+**Para dar seguimiento**
+
+- **Atendido en un toque** en Mis asuntos, Pendientes y Calendario.
+- **Deshacer**: después de un cambio en lote o de «Atendido», el aviso trae «Deshacer»
+  por unos segundos. El servidor guarda cómo estaba todo (10 minutos, una sola vez,
+  solo quien hizo el cambio y solo en lo que nadie volvió a tocar). No manda correos.
+- **Notas de seguimiento** en cada registro, con nombre y fecha. Quedan en la Bitácora:
+  no se editan ni se borran. Las agrega quien captura o la persona a quien se turnó
+  (aunque sea de Consulta).
+- **Calendario** (tarjeta en Seguimiento): las fechas límite del mes, con fines de
+  semana y días inhábiles marcados, «Solo lo mío» e «Incluir atendidos». En celular,
+  cada día muestra cuántos vencen.
+- **Volante con código QR**: con el celular abre ese registro (después de entrar). Los
+  correos de turno de un solo asunto también abren el registro directo.
+
+**Para que nadie se pierda**
+
+- **Ayuda** (arriba en el portal): «Qué hay de nuevo» sale solo una vez por versión; a
+  quien entra por primera vez le salen los «Primeros pasos».
+- **Ordenar por columna** (número, asunto, persona, fecha, estatus) tocando el título; en
+  celular, con la lista «Ordenar». Cada libreta recuerda su filtro y su orden en ese
+  equipo, y «Quitar filtros» los limpia.
+
+**Además**
+
+- El gris de los textos secundarios pasó de `#7b7e80` a `#696b6d`: ahora sí cumple 4.5:1.
+- Las preferencias (filtros, orden, ayuda vista) se guardan en el navegador de ese
+  equipo; nunca datos de los oficios.
+- 120 pruebas (12 nuevas) y el recorrido en navegador de lo nuevo (`capturas/1.8.0/`).
+
 ## 1.7.0 · Dos pasos, cambios en lote, avisos, respaldos diarios y correcciones
 
 **Al publicar: hay DOS columnas nuevas y permisos nuevos → corre `instalar()` una vez**

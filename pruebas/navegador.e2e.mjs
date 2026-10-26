@@ -1,12 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════
 //  navegador.e2e.mjs · Recorrido en un navegador real (Playwright) de lo
-//  nuevo en 1.7.0, con la CSP de Vercel y también como Apps Script.
+//  nuevo en 1.7.0 y 1.8.0, con la CSP de Vercel y también como Apps Script.
 //
 //    npm run e2e
 //
 //  Necesita base/base.json (datos reales: no está en GitHub) y Playwright
 //  (npm i -D playwright  y  npx playwright install chromium).
-//  Deja las capturas y el resultado en capturas/1.7.0/ (tampoco van a GitHub).
+//  Deja las capturas y el resultado en capturas/<versión>/ (no van a GitHub).
 // ════════════════════════════════════════════════════════════════════════
 import { spawn, spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
@@ -16,7 +16,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SALIDA = join(RAIZ, "capturas", "1.7.0");
+const VERSION = (readFileSync(join(RAIZ, "apps-script", "Servidor.gs"), "utf8").match(/var VERSION = '([^']+)'/) || [, "x"])[1];
+const SALIDA = join(RAIZ, "capturas", VERSION);
 const P_SRV = 4391, P_WEB = 4392;
 const require = createRequire(import.meta.url);
 
@@ -86,6 +87,24 @@ function vigilar(pagina, donde) {
 }
 const foto = async (p, n, o = {}) => { await p.waitForTimeout(350); return p.screenshot({ path: join(SALIDA, n), ...o }); };   // sin animaciones a medias
 const NUEVA = "Jacaranda2026x";
+/** La ventana de Ayuda sale sola una vez por versión (y por equipo): se cierra si aparece. */
+async function cerrarAyuda(pg) {
+  const m = pg.locator(".modal", { hasText: "Qué hay de nuevo" });
+  try { await m.waitFor({ timeout: 4000 }); } catch { return false; }
+  await m.getByRole("button", { name: "Entendido" }).click();
+  await m.waitFor({ state: "detached" });
+  return true;
+}
+/** Suelta un archivo sobre un elemento (como arrastrarlo desde una carpeta). */
+async function soltar(loc, nombre, mime, bytes, soloEncima) {
+  await loc.evaluate((el, a) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(a.bytes)], a.nombre, { type: a.mime }));
+    for (const tipo of a.soloEncima ? ["dragenter", "dragover"] : ["dragenter", "dragover", "drop"]) el.dispatchEvent(new DragEvent(tipo, { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, { nombre, mime, bytes: Array.from(bytes), soloEncima: !!soloEncima });
+}
+const hoyMx = () => new Date(Date.now() - 6 * 3600000).toISOString().slice(0, 10);
+const masDias = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 let secreto = "";
 
 try {
@@ -110,6 +129,20 @@ try {
     await p.getByRole("button", { name: "Guardar contraseña" }).click();
     await p.locator(".ptarjeta").first().waitFor();
     return fallan.length + " reglas sin cumplir con «Gestion2026»";
+  });
+
+  await paso("Ayuda: la primera vez salen los primeros pasos, y en otra pestaña lo nuevo de esta versión", async () => {
+    const m = p.locator(".modal", { hasText: "Primeros pasos" });
+    await m.waitFor({ timeout: 5000 });
+    esperar(await m.locator(".guia__tab.activa").innerText() === "Primeros pasos", "debía abrir en «Primeros pasos»");
+    await foto(p, "20-ayuda-primeros-pasos.png");
+    await m.getByRole("tab", { name: "Qué hay de nuevo" }).click();
+    const n = await m.locator(".guia__i").count();
+    esperar(n >= 6, "pocas novedades: " + n);
+    await foto(p, "21-ayuda-novedades.png");
+    await m.getByRole("button", { name: "Entendido" }).click();
+    await m.waitFor({ state: "detached" });
+    return n + " novedades para el administrador";
   });
 
   await paso("Portal del administrador: recomienda poner plazo y activar dos pasos", async () => {
@@ -142,7 +175,7 @@ try {
   });
 
   await paso("Mi cuenta: estado de dos pasos, correo y equipo; el foco no se sale de la ventana", async () => {
-    await p.locator(".pcab__cuenta").click();
+    await p.getByRole("button", { name: "Mi cuenta" }).click();
     const modal = p.locator(".modal").last();
     await modal.getByText("✓ Activada").waitFor();
     for (let i = 0; i < 12; i++) await p.keyboard.press("Tab");
@@ -288,10 +321,11 @@ try {
     await c.getByLabel("Código de 6 dígitos").fill(await codigoNuevo(secreto));
     await c.getByRole("button", { name: "Verificar" }).click();
     await c.locator(".ptarjeta").first().waitFor();
+    await cerrarAyuda(c);
     const desborde = await c.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     esperar(desborde <= 0, "la página se sale " + desborde + " px a lo ancho");
     await foto(c, "13-celular-portal.png");
-    await c.locator(".pcab__cuenta").click();
+    await c.getByRole("button", { name: "Mi cuenta" }).click();
     await c.locator(".modal").getByText("✓ Activada").waitFor();
     await foto(c, "14-celular-mi-cuenta.png");
     await cel.close();
@@ -308,10 +342,223 @@ try {
     await g.getByLabel("Código de 6 dígitos").fill(await codigoNuevo(secreto));
     await g.getByRole("button", { name: "Verificar" }).click();
     await g.locator(".ptarjeta").first().waitFor();
+    await cerrarAyuda(g);
     const n = await g.locator(".ptarjeta").count();
     await foto(g, "15-apps-script-portal.png");
     await gas.close();
     return n + " tarjetas";
+  });
+
+  /* ═══ 1.8.0 ═══ */
+  await paso("Apartar números: salen al instante, quedan «por completar» y el portal lo recuerda", async () => {
+    await p.locator(".mcab__volver").click().catch(() => {});
+    await p.locator(".ptarjeta", { hasText: "Oficios salientes" }).click();
+    await p.getByRole("button", { name: "Apartar número" }).click();
+    const m = p.locator(".modal", { hasText: "Apartar número" });
+    await m.getByLabel("¿Cuántos números?").fill("2");
+    await m.getByLabel("Para qué (opcional)").fill("respuestas a la Alcaldía");
+    await foto(p, "22-apartar.png");
+    await m.getByRole("button", { name: "Apartar", exact: true }).click();
+    const r = p.locator(".modal", { hasText: "números apartados" });
+    await r.waitFor();
+    const txt = await r.locator(".alerta").innerText();
+    esperar(/SAPCI\/STPI\/\d{3}\/\d{4}.*SAPCI\/STPI\/\d{3}\/\d{4}/.test(txt), "rango raro: " + txt);
+    await foto(p, "23-apartados.png");
+    await r.getByRole("button", { name: "Listo" }).click();
+    const ind = p.locator(".ind", { hasText: "Por completar" });
+    await ind.click();
+    await p.locator("tbody .ins--completar").first().waitFor();
+    await foto(p, "24-por-completar.png");
+    await p.locator(".mcab__volver").click();
+    await p.getByText(/Tienes 2 números apartados por completar/).waitFor();
+    return txt.replace(/\s+/g, " ");
+  });
+
+  await paso("Completar un número apartado desde su detalle", async () => {
+    await p.getByText(/Tienes 2 números apartados por completar/).click();
+    await p.locator("tbody tr", { has: p.locator(".ins--completar") }).first().click();
+    const panel = p.locator(".panel");
+    await panel.getByText("Número apartado.").waitFor();
+    await panel.getByRole("button", { name: "Completar" }).first().click();
+    const f = p.locator(".modal", { hasText: "Completar oficio saliente" });
+    await f.getByText(/Número apartado\. Captura el asunto/).waitFor();
+    await foto(p, "25-completar.png");
+    await f.locator("textarea").first().fill("Respuesta a la solicitud de la Alcaldía sobre jornadas de paz");
+    await f.getByRole("button", { name: "Guardar cambios" }).click();
+    await p.getByText(/^Guardado: Oficio saliente/).waitFor();
+    await panel.getByText("Número apartado.").waitFor({ state: "detached" });
+    await p.keyboard.press("Escape");
+  });
+
+  await paso("«Lo de siempre» y «Guardar y capturar otro»", async () => {
+    await p.getByRole("button", { name: /Nuevo oficio saliente/ }).click();
+    let f = p.locator(".modal", { hasText: "Nuevo oficio saliente" });
+    await f.locator("textarea").first().fill("Invitación a la mesa de trabajo de octubre");
+    await f.getByRole("button", { name: "Guardar y capturar otro" }).click();
+    await p.getByText(/^Registrado: Oficio saliente/).waitFor();
+    f = p.locator(".modal", { hasText: "Nuevo oficio saliente" });
+    await f.waitFor();
+    esperar(await f.locator("textarea").first().inputValue() === "", "el segundo formulario debía salir limpio");
+    const nota = await f.locator(".nota-siempre").innerText().catch(() => "");
+    esperar(/como en tu último registro/.test(nota), "sin «lo de siempre»: " + nota);
+    await foto(p, "26-lo-de-siempre.png");
+    await f.getByRole("button", { name: "Cancelar" }).click();
+    return nota;
+  });
+
+  await paso("Ordenar por columna y recordar el filtro de cada libreta", async () => {
+    await p.getByRole("button", { name: "Ordenar por asunto" }).click();
+    esperar(await p.locator("th[aria-sort='ascending']").innerText() !== "", "sin columna ordenada");
+    const asuntos = await p.locator("tbody .t-asunto").evaluateAll((td) => td.slice(0, 8).map((x) => x.firstChild ? x.firstChild.textContent.trim() : ""));
+    const ordenados = asuntos.filter(Boolean);
+    esperar(ordenados.join("|") === ordenados.slice().sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base", numeric: true })).join("|"), "no quedó en orden: " + ordenados.slice(0, 4));
+    await p.getByLabel("Estatus", { exact: true }).selectOption("(activos)");
+    await p.locator(".mcab__volver").click();
+    await p.locator(".ptarjeta", { hasText: "Oficios salientes" }).click();
+    esperar(await p.getByLabel("Estatus", { exact: true }).inputValue() === "(activos)", "no recordó el filtro");
+    esperar(await p.locator("th[aria-sort='ascending']").count() === 1, "no recordó el orden");
+    await p.getByRole("button", { name: "Quitar filtros" }).waitFor();
+    await foto(p, "27-orden-y-filtros.png");
+    await p.getByRole("button", { name: "Quitar filtros" }).click();
+    esperar(await p.getByLabel("Estatus", { exact: true }).inputValue() === "", "no quitó el filtro");
+    await p.getByRole("button", { name: "Ordenar por no." }).click();   // regresa al orden de siempre (más recientes primero)
+    esperar(/^No\./.test(await p.locator("th[aria-sort='descending']").innerText()), "no regresó al orden de siempre");
+  });
+
+  await paso("Notas de seguimiento en el detalle", async () => {
+    await p.locator("tbody tr").nth(2).click();
+    const panel = p.locator(".panel");
+    await panel.getByText("Notas de seguimiento").waitFor();
+    await panel.getByLabel("Nota nueva").fill("Se llamó al enlace de la Alcaldía; enviarán la información el viernes.");
+    await panel.getByRole("button", { name: "Agregar nota" }).click();
+    await panel.locator(".nota", { hasText: "enviarán la información el viernes" }).waitFor();
+    await panel.locator(".nota__cab", { hasText: "Administrador" }).waitFor();
+    await panel.locator(".nota").scrollIntoViewIfNeeded();
+    await foto(p, "28-notas.png");
+  });
+
+  await paso("Soltar el escaneo sobre el registro (arrastrar desde la computadora)", async () => {
+    const panel = p.locator(".panel");
+    const bloque = panel.locator(".archivo").first();
+    const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+    await bloque.scrollIntoViewIfNeeded();
+    await soltar(bloque, "arrastrado.pdf", "application/pdf", pdf, true);
+    esperar(await bloque.evaluate((el) => el.classList.contains("soltar--activo")), "no se marcó la zona al pasar el archivo");
+    await foto(p, "29-soltar.png");
+    await soltar(bloque, "arrastrado.pdf", "application/pdf", pdf);
+    await p.getByText("Archivo guardado.").last().waitFor();
+    await panel.locator(".archivo.tiene", { hasText: "arrastrado.pdf" }).waitFor();
+    await soltar(panel.locator(".archivo").nth(1), "notas.txt", "text/plain", Buffer.from("hola"));
+    await p.getByText("Solo se aceptan PDF, JPG o PNG.").waitFor();
+    await p.keyboard.press("Escape");
+  });
+
+  let idEntrante = "";
+  await paso("Calendario: lo que vence cada día, con días inhábiles", async () => {
+    await p.locator(".mcab__volver").click();
+    await p.locator(".ptarjeta", { hasText: "Oficios salientes" }).click();
+    await p.getByLabel("Estatus", { exact: true }).selectOption("(activos)");   // que sigan abiertos (el calendario muestra lo abierto)
+    await p.getByRole("button", { name: "Seleccionar" }).click();
+    for (let i = 0; i < 2; i++) await p.locator("tbody .sel__c").nth(i).check();
+    await p.locator(".lote").getByRole("button", { name: "Fecha límite" }).click();
+    const limite = masDias(hoyMx(), 2);
+    await p.locator(".modal input[type=date]").fill(limite);
+    await p.getByRole("button", { name: "Cambiar 2" }).click();
+    await p.locator(".aviso", { hasText: /Listo: 2 registros/ }).waitFor();
+    await p.locator(".lote").getByRole("button", { name: "Terminar" }).click();
+    await p.getByRole("button", { name: "Quitar filtros" }).click();
+    await p.locator(".mcab__volver").click();
+    await p.locator(".ptarjeta", { hasText: "Calendario" }).click();
+    await p.locator(".cal__rejilla").waitFor();
+    if (limite.slice(0, 7) !== hoyMx().slice(0, 7)) await p.getByRole("button", { name: "Mes siguiente" }).click();
+    const celda = p.locator(".cal__dia").filter({ has: p.locator(".cal__num", { hasText: new RegExp("^" + Number(limite.slice(8)) + "$") }) });
+    await celda.click();
+    const lista = p.locator(".cal__lista .pend__i");
+    esperar(await lista.count() >= 2, "el día no trae los 2 asuntos");
+    esperar(await p.locator(".cal__dia--inhabil").count() >= 8, "faltan fines de semana marcados");
+    await foto(p, "30-calendario.png", { fullPage: true });
+    return (await lista.count()) + " asuntos el " + limite;
+  });
+
+  await paso("«Atendido» en un toque y «Deshacer»", async () => {
+    const antes = await p.locator(".cal__lista .pend__i").count();
+    await p.locator(".cal__lista").getByRole("button", { name: /como atendido/ }).first().click();
+    const av = p.locator(".aviso", { hasText: /^Atendido:/ });
+    await av.waitFor();
+    await foto(p, "31-atendido-deshacer.png");
+    await p.waitForFunction((n) => document.querySelectorAll(".cal__lista .pend__i").length === n - 1, antes);
+    await av.getByRole("button", { name: "Deshacer" }).click();
+    await p.locator(".aviso", { hasText: /se deshizo el cambio/ }).waitFor();
+    await p.waitForFunction((n) => document.querySelectorAll(".cal__lista .pend__i").length === n, antes, { timeout: 15000 });
+    await p.locator(".mcab__volver").click();
+    await p.locator(".ptarjeta", { hasText: "Pendientes" }).click();
+    await p.locator(".pend .btn--atender").first().waitFor();
+  });
+
+  await paso("Volante con código QR que abre el registro", async () => {
+    await p.locator(".mcab__volver").click();
+    await p.locator(".ptarjeta", { hasText: "Oficios entrantes" }).click();
+    await p.locator("tbody tr").first().click();
+    const panel = p.locator(".panel");
+    await panel.getByRole("button", { name: "Imprimir volante" }).click();
+    const qr = p.locator(".vol-previa .vol__qr svg");
+    await qr.waitFor();
+    await foto(p, "32-volante-qr.png");
+    // En papel mide 2.1 cm; en la vista previa es chico: se agranda solo para leerlo
+    await qr.evaluate((el) => { el.style.width = "330px"; el.style.height = "330px"; });
+    await qr.screenshot({ path: join(SALIDA, "qr-volante.png") });
+    let leido = "sin OpenCV";
+    const py = ["python3", "python"].find((x) => spawnSync(x, ["-c", "import cv2"]).status === 0);
+    if (py) {
+      const r = spawnSync(py, ["-I", "-c", "import sys,cv2\nimg=cv2.imread(sys.argv[1])\nimg=cv2.copyMakeBorder(img,40,40,40,40,cv2.BORDER_CONSTANT,value=(255,255,255))\nprint(cv2.QRCodeDetector().detectAndDecode(img)[0])", join(SALIDA, "qr-volante.png")], { encoding: "utf8" });
+      leido = r.stdout.trim();
+      esperar(/(#\/r\/|\?r=)[A-Za-z0-9_-]+$/.test(leido), "el QR dice: " + leido);
+      idEntrante = leido.split(/#\/r\/|\?r=/)[1];
+    }
+    rmSync(join(SALIDA, "qr-volante.png"), { force: true });
+    await p.keyboard.press("Escape");
+    await p.keyboard.press("Escape");
+    return leido;
+  });
+
+  await paso("Enlace directo (#/r/ID): después de entrar abre ese registro", async () => {
+    if (!idEntrante) return "sin OpenCV: se salta";
+    const ctx2 = await navegador.newContext({ viewport: { width: 1280, height: 860 }, locale: "es-MX" });
+    const q = await ctx2.newPage();
+    vigilar(q, "enlace directo");
+    await q.goto(`http://localhost:${P_WEB}/#/r/${idEntrante}`);
+    await q.getByPlaceholder("nombre.apellido").fill(admin.usuario);
+    await q.locator("input[type=password]").first().fill(NUEVA);
+    await q.getByRole("button", { name: "Entrar" }).click();
+    await q.getByLabel("Código de 6 dígitos").fill(await codigoNuevo(secreto));
+    await q.getByRole("button", { name: "Verificar" }).click();
+    await q.locator(".panel").waitFor();
+    await foto(q, "33-enlace-directo.png");
+    await ctx2.close();
+  });
+
+  await paso("Celular: calendario y orden en la libreta", async () => {
+    const cel = await navegador.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "es-MX" });
+    const c = await cel.newPage();
+    vigilar(c, "celular 1.8.0");
+    await c.goto(`http://localhost:${P_WEB}/`);
+    await c.getByPlaceholder("nombre.apellido").fill(admin.usuario);
+    await c.locator("input[type=password]").first().fill(NUEVA);
+    await c.getByRole("button", { name: "Entrar" }).click();
+    await c.getByLabel("Código de 6 dígitos").fill(await codigoNuevo(secreto));
+    await c.getByRole("button", { name: "Verificar" }).click();
+    await c.locator(".ptarjeta").first().waitFor();
+    await cerrarAyuda(c);
+    await c.locator(".ptarjeta", { hasText: "Calendario" }).click();
+    await c.locator(".cal__rejilla").waitFor();
+    const desborde = await c.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    esperar(desborde <= 0, "el calendario se sale " + desborde + " px");
+    await foto(c, "34-celular-calendario.png", { fullPage: true });
+    await c.locator(".mcab__volver").click();
+    await c.locator(".ptarjeta", { hasText: "Oficios salientes" }).click();
+    await c.getByLabel("Ordenar", { exact: true }).selectOption("asunto:asc");
+    await foto(c, "35-celular-orden.png");
+    await cel.close();
   });
 
   await paso("Sin errores de JavaScript ni bloqueos de la CSP", async () => {
@@ -324,5 +571,5 @@ try {
   await navegador.close();
   hijos.forEach((h) => h.kill());
 }
-console.log(fallas ? "\n✘ El recorrido falló." : "\n✔ Recorrido completo. Capturas en capturas/1.7.0/");
+console.log(fallas ? "\n✘ El recorrido falló." : "\n✔ Recorrido completo. Capturas en capturas/" + VERSION + "/");
 process.exit(fallas ? 1 : 0);

@@ -28,8 +28,14 @@ function urlApp_() {
   try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
 }
 
+/** Enlace que abre un registro directo (después de entrar): #/r/ID en Vercel, ?r=ID en la URL de Google. */
+function enlaceRegistro_(url, id) {
+  if (!url || !/^[A-Za-z0-9_-]{1,60}$/.test(String(id || ''))) return url;
+  return /\/exec\b|script\.google/.test(url) ? url.replace(/[?#].*$/, '') + '?r=' + id : url.replace(/#.*$/, '').replace(/\/+$/, '') + '/#/r/' + id;
+}
+
 function datosAviso_(r) {
-  return { tipo: TIPOS[r.tipo] ? TIPOS[r.tipo].singular : r.tipo, num: etiquetaNum_(r), numero: r.numero || '',
+  return { id: r.id, tipo: TIPOS[r.tipo] ? TIPOS[r.tipo].singular : r.tipo, num: etiquetaNum_(r), numero: r.numero || '',
     limite: r.fecha_limite || '', asunto: corta_(String(r.asunto || '').replace(/\s+/g, ' '), 160) };
 }
 
@@ -77,7 +83,7 @@ function lineaAviso_(r, detalle) {
 
 function fechaCortaSrv_(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
 
-function armarCorreo_(asunto, saludo, bloques, url) {
+function armarCorreo_(asunto, saludo, bloques, url, boton) {
   var pie = 'Este aviso lo manda el sistema porque tienes un correo registrado. Para dejar de recibirlos, quítalo en «Mi cuenta».';
   var texto = saludo + '\n\n' + bloques.map(function (b) {
     return (b.titulo ? b.titulo + '\n' : '') + b.lineas.map(function (l) { return '  · ' + l; }).join('\n');
@@ -89,8 +95,8 @@ function armarCorreo_(asunto, saludo, bloques, url) {
       return (b.titulo ? '<p style="margin:14px 0 4px"><strong>' + escHtml_(b.titulo) + '</strong></p>' : '') +
         '<ul style="margin:0;padding-left:18px">' + b.lineas.map(function (l) { return '<li style="margin:2px 0">' + escHtml_(l) + '</li>'; }).join('') + '</ul>';
     }).join('') +
-    (url ? '<p style="margin:18px 0"><a href="' + escHtml_(url) + '" style="background:#8f4889;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none">Abrir ' + escHtml_(NOMBRE_SISTEMA) + '</a></p>' : '') +
-    '<p style="color:#7b7e80;font-size:12px">' + escHtml_(pie) + '</p></div>';
+    (url ? '<p style="margin:18px 0"><a href="' + escHtml_(url) + '" style="background:#8f4889;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none">' + escHtml_(boton || 'Abrir ' + NOMBRE_SISTEMA) + '</a></p>' : '') +
+    '<p style="color:#696b6d;font-size:12px">' + escHtml_(pie) + '</p></div>';
   return { asunto: asunto, texto: texto, html: html };
 }
 
@@ -103,8 +109,9 @@ function limitar_(lista, detalle) {
 function correoTurno_(a, detalle, url) {
   var n = a.registros.length;
   var asunto = n === 1 ? 'Te turnaron: ' + a.registros[0].tipo + ' ' + a.registros[0].num : 'Te turnaron ' + n + ' asuntos';
+  // Con un solo asunto, el botón lo abre directo (después de entrar)
   return armarCorreo_(asunto, 'Hola, ' + a.nombre + '. ' + a.quien + (n === 1 ? ' te turnó este asunto:' : ' te turnó estos asuntos:'),
-    [{ lineas: limitar_(a.registros, detalle) }], url);
+    [{ lineas: limitar_(a.registros, detalle) }], n === 1 ? enlaceRegistro_(url, a.registros[0].id) : url, n === 1 ? 'Abrir el asunto' : null);
 }
 
 function correoDiario_(a, detalle, url) {

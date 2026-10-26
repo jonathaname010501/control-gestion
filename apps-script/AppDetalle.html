@@ -34,7 +34,7 @@
   function mostrarDetalle(res, id) {
     if (res && res.registro && res.detalle) {
       pedidoDetalle++;
-      pintarDetalle({ registro: res.registro, ligados: res.detalle.ligados || [], historial: res.detalle.historial || [] });
+      pintarDetalle({ registro: res.registro, ligados: res.detalle.ligados || [], historial: res.detalle.historial || [], notas: res.detalle.notas });
     } else {
       abrirDetalle(id || (res && res.registro && res.registro.id));
     }
@@ -47,7 +47,8 @@
     var velo = h('div', { class: 'velo', onclick: cerrarPanel });
     var cancelado = r.estatus === 'Cancelado';
     var acciones = [];
-    if (puedeCapturar(t) && (!cancelado || esAdmin())) acciones.push(h('button', { class: 'btn btn--chico', onclick: function () { formulario(t, r); } }, icono('editar'), 'Editar'));
+    var completar = porCompletar(r);
+    if (puedeCapturar(t) && (!cancelado || esAdmin())) acciones.push(h('button', { class: 'btn btn--chico' + (completar ? ' btn--prim' : ''), onclick: function () { formulario(t, r); } }, icono('editar'), completar ? 'Completar' : 'Editar'));
     if (def.recibido && !cancelado && puedeCapturar('OFS')) {
       acciones.push(h('button', { class: 'btn btn--chico', onclick: function () { responder(r); } }, icono('responder'), 'Responder con oficio'));
     }
@@ -98,9 +99,12 @@
       bloqueArchivo(r, 'oficio', 'Documento escaneado', r.tiene_archivo, r.archivo_nombre),
       bloqueArchivo(r, 'acuse', t === 'OFE' ? 'Oficio original / acuse' : 'Acuse', r.tiene_acuse_archivo, r.acuse_archivo_nombre));
 
-    var hist = previo ? cargando() : h('ul', { class: 'historial' }, d.historial.length ? d.historial.map(function (x) {
+    // Las notas se ven en su propia sección (en el historial saldrían repetidas)
+    var movs = d.notas ? d.historial.filter(function (x) { return x.accion !== 'nota'; }) : d.historial;
+    var hist = previo ? cargando() : h('ul', { class: 'historial' }, movs.length ? movs.map(function (x) {
       return h('li', null, h('strong', null, x.accion), ' · ', h('span', null, fechaCorta(x.fecha) + ' ' + String(x.fecha).slice(11, 16) + ' · ' + x.usuario), x.detalle ? h('div', null, x.detalle) : null);
     }) : h('li', null, h('span', null, 'Sin movimientos registrados en el sistema.')));
+    var notas = tiene('agregarNota') ? (previo ? cargando() : seccionNotas(r, d)) : null;
 
     var panel = h('aside', { class: 'panel', role: 'dialog', 'aria-modal': 'true', tabindex: '-1', 'aria-label': def.singular + ' ' + etiquetaNum(r) },
       h('div', { class: 'panel__cab' },
@@ -110,9 +114,13 @@
       h('div', { class: 'panel__acciones' }, acciones),
       h('div', { class: 'panel__cuerpo' },
         cancelado ? h('div', { class: 'cancelacion' }, h('strong', null, 'Cancelado. '), r.motivo_cancelacion || '') : null,
+        completar ? h('div', { class: 'alerta alerta--aviso alerta--accion' }, icono('apartar'),
+          h('div', null, h('strong', null, 'Número apartado. '), 'Falta capturar el oficio (asunto, destinatario…).'),
+          puedeCapturar(t) && !previo ? h('button', { class: 'btn btn--chico', onclick: function () { formulario(t, r); } }, 'Completar') : null) : null,
         h('section', { class: 'seccion' }, h('h3', null, 'Datos'), datos),
         h('section', { class: 'seccion' }, h('h3', null, 'Seguimiento'), seg, ligados ? h('div', { style: { marginTop: '10px' } }, ligados) : null),
         h('section', { class: 'seccion' }, h('h3', null, 'Archivos'), archivos),
+        notas ? h('section', { class: 'seccion' }, h('h3', null, 'Notas de seguimiento'), notas) : null,
         h('section', { class: 'seccion' }, h('h3', null, 'Historial'), hist),
         previo ? null : h('div', { style: { fontSize: '12px', color: 'var(--texto-3)' } },
           'Capturó ' + (r.creado_por || '—') + ' el ' + fechaCorta(r.creado_en) + ' · Última modificación: ' + (r.modificado_por || r.creado_por || '—') + ' ' + fechaCorta(r.modificado_en) +
@@ -145,6 +153,44 @@
     if (cerrarBtn) cerrarBtn.focus(); else panel.focus();
   }
 
+  /* ─────────── Notas de seguimiento ─────────── */
+  // Quedan con fecha y autor y no se pueden editar ni borrar (están en la Bitácora).
+  // Las agrega quien captura en la libreta o la persona a quien se le turnó.
+  function puedeAnotar(r) { return tiene('agregarNota') && (puedeCapturar(r.tipo) || esMio(r)) && (r.estatus !== 'Cancelado' || esAdmin()); }
+  function seccionNotas(r, d) {
+    var lista = d.notas || [];
+    var cont = h('div', { class: 'notas' });
+    cont.appendChild(lista.length ? h('ul', { class: 'notas__lista' }, lista.map(function (n) {
+      return h('li', { class: 'nota' }, h('div', { class: 'nota__cab' }, h('strong', null, n.nombre || n.usuario), h('span', null, fechaCorta(n.fecha) + ' ' + String(n.fecha).slice(11, 16))),
+        h('div', { class: 'nota__txt' }, n.texto));
+    })) : h('p', { class: 'notas__vacio' }, 'Todavía no hay notas. Anota aquí lo que va pasando: llamadas, prórrogas, a quién se le pidió qué.'));
+    if (puedeAnotar(r)) {
+      var texto = h('textarea', { class: 'entrada', rows: 2, maxlength: 1000, placeholder: 'Ej.: Se llamó al enlace; enviarán la información el viernes.', 'aria-label': 'Nota nueva' });
+      var msg = h('div');
+      var boton = h('button', { class: 'btn btn--chico btn--prim', type: 'button', onclick: function () {
+        var t = texto.value.trim();
+        if (t.length < 2) { texto.focus(); return; }
+        boton.disabled = true; boton.textContent = 'Guardando…';
+        llamar('agregarNota', { id: r.id, texto: t }).then(function (res) {
+          d.notas = res.notas; d.historial = res.historial;
+          if (panelActual && panelActual.id === r.id) pintarDetalle(d);
+          aviso('Nota agregada.', 'ok');
+        }).catch(function (e) {
+          boton.disabled = false; boton.textContent = 'Agregar nota';
+          vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, e.message));
+        });
+      } }, icono('nota'), 'Agregar nota');
+      texto.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); boton.click(); } });
+      cont.appendChild(h('div', { class: 'notas__nueva' }, texto, h('div', { class: 'notas__pie' }, h('span', { class: 'campo__ayuda' }, 'Queda con tu nombre y la fecha; no se puede borrar.'), boton), msg));
+    }
+    return cont;
+  }
+
+  /** Solo PDF, JPG o PNG (lo mismo que acepta el servidor). */
+  function tipoAceptado(f) {
+    return /^(application\/pdf|image\/jpeg|image\/png)$/.test(f.type || '') || (!f.type && /\.(pdf|jpe?g|png)$/i.test(f.name || ''));
+  }
+
   function bloqueArchivo(r, clase, titulo, tiene, nombre) {
     var puede = puedeCapturar(r.tipo) && r.estatus !== 'Cancelado';
     var listo = function (res) { trasCambio(res, r.id); cargarListaSiAplica(r.tipo); };
@@ -169,9 +215,18 @@
       botones.push(h('button', { class: 'btn btn--chico', onclick: function () { input.click(); } }, icono('subir'), 'Subir'));
       botones.push(botonFoto);
     }
-    return h('div', { class: 'archivo' + (tiene ? ' tiene' : '') }, h('div', { class: 'archivo__ico' }, icono(tiene ? 'archivo' : 'clip')),
-      h('div', { class: 'archivo__txt' }, h('strong', null, titulo), h('span', null, tiene ? nombre : 'Sin archivo · PDF, JPG o PNG hasta 10 MB')),
+    var bloque = h('div', { class: 'archivo' + (tiene ? ' tiene' : '') }, h('div', { class: 'archivo__ico' }, icono(tiene ? 'archivo' : 'clip')),
+      h('div', { class: 'archivo__txt' }, h('strong', null, titulo), h('span', null, tiene ? nombre : 'Sin archivo · PDF, JPG o PNG hasta 10 MB',
+        !tiene && puede && !esCelular() ? h('span', { class: 'archivo__soltar' }, ' · o suéltalo aquí') : null)),
       h('div', { class: 'archivo__botones' }, botones), input, camara);
+    // En computadora: arrastrar el escaneo desde una carpeta y soltarlo aquí
+    if (puede) zonaSoltar(bloque, function (f) {
+      if (!tipoAceptado(f)) { aviso('Solo se aceptan PDF, JPG o PNG.', 'error'); return; }
+      var subir = function () { subirArchivo(r, clase, f).then(listo).catch(fallo); };
+      if (!tiene) { subir(); return; }
+      confirmar('¿Reemplazar «' + nombre + '» con «' + f.name + '»?\nEl anterior queda 30 días en la papelera de Drive del dueño.', { si: 'Reemplazar' }).then(function (si) { if (si) subir(); });
+    });
+    return bloque;
   }
 
   /* ───────────────────────── Volante de recepción (media carta) ───────────────────────── */
@@ -188,9 +243,12 @@
     };
     var turnado = [r.turnado_nombre || '', r.turnado_a || ''].filter(Boolean).join(' · ');
     var ahora = new Date();
+    // Código QR: con el celular abre este registro (después de entrar con su usuario)
+    var enlace = enlaceRegistro(r.id), qr = null;
+    if (enlace) { try { qr = h('div', { class: 'vol__qr' }, QR.svg(enlace, 96), h('span', null, 'Escanéalo para abrir el registro')); } catch (e) { qr = null; } }
     return h('div', { class: 'vol' },
       h('header', { class: 'vol__cab' }, h('img', { class: 'vol__logo', src: LOGO, alt: '', width: 56, height: 56 }),
-        h('div', { class: 'vol__inst' }, enc.map(function (x, i) { return h('div', { class: i === 0 ? 'vol__inst1' : '' }, x); }))),
+        h('div', { class: 'vol__inst' }, enc.map(function (x, i) { return h('div', { class: i === 0 ? 'vol__inst1' : '' }, x); })), qr),
       h('div', { class: 'vol__titulo' }, h('strong', null, 'Volante de recepción'), h('span', null, def.singular)),
       h('div', { class: 'vol__nums' },
         h('div', { class: 'vol__num' }, h('span', { class: 'vol__et' }, 'No. de control'), h('strong', null, t + ' ' + etiquetaNum(r))),
@@ -303,7 +361,7 @@
     });
     function poner(f) {
       elegido = f || null;
-      info.textContent = f ? (f.name || 'archivo') + ' · ' + tamano(f.size) : 'Ningún archivo';
+      info.textContent = f ? (f.name || 'archivo') + ' · ' + tamano(f.size) : 'Ningún archivo' + (esCelular() ? '' : ' · o suéltalo aquí');
       quitar.classList.toggle('oculto', !f);
     }
     var el = h('div', { class: 'campo' }, h('span', { class: 'campo__et' }, etiqueta),
@@ -311,6 +369,8 @@
         h('button', { type: 'button', class: 'btn btn--chico', onclick: function () { normal.click(); } }, icono('subir'), 'Elegir archivo'),
         h('button', { type: 'button', class: 'btn btn--chico', onclick: function () { foto.click(); } }, icono('camara'), 'Tomar foto')),
       h('div', { class: 'selarch__fila' }, info, quitar), normal, foto);
+    if (!esCelular()) info.textContent = 'Ningún archivo · o suéltalo aquí';
+    zonaSoltar(el, function (f) { if (!tipoAceptado(f)) { aviso('Solo se aceptan PDF, JPG o PNG.', 'error'); return; } poner(f); });
     return { el: el, archivo: function () { return elegido; } };
   }
 

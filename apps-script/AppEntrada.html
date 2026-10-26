@@ -81,6 +81,7 @@
     guardarEquipo(recordar ? u : '', recordar ? (r.equipo || leerEquipo(u)) : '');
     E.token = r.token; guardarLocal('cg_token', r.token);
     E.usuarioEntrada = u;
+    E.nuevoUsuario = !!(r.debe_cambiar && r.motivo !== 'reglas');   // primera vez: se le muestran los primeros pasos
     E.nombreEntrada = r.nombre || '';
     if (r.debe_cambiar) pantallaCambiarClave(true, claveEscrita, r.motivo);
     else if (r.activar2fa) pantallaActivar2fa(true);
