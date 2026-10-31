@@ -238,7 +238,7 @@ var CONFIG_INICIAL = [
   ['encabezado_3', 'Dirección Ejecutiva de Gabinetes de Paz', 'Tercera línea (déjala vacía si no aplica)'],
   ['plantilla_OFS', 'SAPCI/STPI/{NNN}/{AAAA}', 'Número oficial de los oficios salientes. {NNN} = consecutivo, {AAAA} = año'],
   ['plazo_dias', '', 'Días hábiles por omisión para la fecha límite de un entrante (vacío = sin fecha límite)'],
-  ['url_web', '', 'Dirección pública de la app si se publica fuera de Google (Vercel). Vacío = se usa la de Google'],
+  ['url_web', '', 'Dirección de la app (Vercel). La usan el código QR del volante, los correos y el enlace que muestra la URL de Google'],
   ['esquema', '1', 'Versión del esquema de la base (no la cambies)'],
   ['mantenimiento', 'NO', 'SI = solo los administradores pueden usar el sistema (se cambia en Configuración)'],
   ['mantenimiento_msg', '', 'Mensaje que ve la gente mientras hay mantenimiento'],
@@ -344,7 +344,7 @@ function revisar_(log) {
   } catch (e) { /* ya reportado */ }
   try {
     var url = ScriptApp.getService().getUrl();
-    log.push(url ? '✔ App web publicada: ' + url : '· App web todavía no publicada.');
+    log.push(url ? '✔ Servidor publicado (esta URL va en CG_API_URL de Vercel): ' + url : '· El servidor todavía no está publicado como aplicación web.');
   } catch (e) { /* sin implementación */ }
   log.push(problemas ? '⚠ Hay ' + problemas + ' punto(s) por corregir.' : '✔ Todo en orden.');
 }

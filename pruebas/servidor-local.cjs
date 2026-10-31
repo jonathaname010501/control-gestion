@@ -1,14 +1,20 @@
 // ════════════════════════════════════════════════════════════════════════
-//  servidor-local.cjs · Corre la app como si fuera Apps Script, en local,
-//  para probarla en un navegador real (Playwright).
+//  servidor-local.cjs · La app completa en tu computadora, para probarla
+//  en el navegador: la página (armada desde web/ como en Vercel, con los
+//  mismos encabezados de seguridad) y el servidor (el de apps-script/, en el
+//  simulador), en una sola dirección.
 //
-//   node pruebas/servidor-local.cjs [puerto]
+//   npm run local          → http://localhost:4321
 //
-//  · GET  /           → doGet() del servidor real, con un "google.script.run"
-//                       de prueba que manda las llamadas a /__run.
-//  · POST /__run      → llama la función pública del servidor (las privadas,
-//                       las que terminan en _, se rechazan como en Google).
-//  · GET  /__admin    → usuario y contraseña temporal que dio instalar().
+//  · GET  /, /app.js, …   → la página. Se vuelve a armar cada vez que recargas:
+//                           cambia algo en web/ y recarga el navegador.
+//                           (Si cambias un .gs, detén esto con Ctrl+C y vuelve a correrlo.)
+//  · POST /exec           → doPost() del servidor real, como la URL /exec de Google.
+//  · GET  /exec           → doGet(): lo que ve quien abre la URL de Google.
+//  · GET  /__admin        → usuario y contraseña temporal que dio instalar().
+//
+//  Con base/base.json (los datos migrados; no van en GitHub) arranca con ellos;
+//  sin él, con una base vacía.
 //
 //  CG_RETRASO_MS=1500  cada respuesta tarda eso (como Apps Script de verdad),
 //                      para ver cuánto espera la persona en cada pantalla.
@@ -19,16 +25,17 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { crearEntorno } = require("./simulador.cjs");
 
 const PUERTO = Number(process.argv[2] || 4321);
-const RUTA_BASE = path.join(__dirname, "..", "base", "base.json");
-if (!fs.existsSync(RUTA_BASE)) {
-  console.error("Falta base/base.json (los datos migrados; no van en GitHub). Cópialo del zip original.");
-  process.exit(1);
-}
+const RAIZ = path.join(__dirname, "..");
+const RUTA_BASE = path.join(RAIZ, "base", "base.json");
+const API = `http://localhost:${PUERTO}/exec`;
+
 const e = crearEntorno();
-e.cargarBase(JSON.parse(fs.readFileSync(path.join(__dirname, "..", "base", "base.json"), "utf8")));
+const conBase = fs.existsSync(RUTA_BASE);
+if (conBase) e.cargarBase(JSON.parse(fs.readFileSync(RUTA_BASE, "utf8")));
 const salida = e.comoDueno("instalar");
 const m = salida.match(/Usuario: (\S+)\s+Contraseña temporal: (\S+)/);
 e.comoAnonimo();
@@ -52,88 +59,61 @@ if (process.env.CG_SIMULAR_150 === "1") {
 }
 const RETRASO = Number(process.env.CG_RETRASO_MS || 0);
 const despues = (f) => (RETRASO ? setTimeout(f, RETRASO) : f());
-e.estado.url = `http://localhost:${PUERTO}/`;
+e.estado.url = API;
 
-const FUENTES = path.join(__dirname, "fuentes");
-const SHIM = `<script>
-window.google = { script: { run: (function () {
-  function corredor(ok, mal) {
-    return new Proxy({}, { get: function (_, nombre) {
-      if (nombre === 'withSuccessHandler') return function (f) { return corredor(f, mal); };
-      if (nombre === 'withFailureHandler') return function (f) { return corredor(ok, f); };
-      return function () {
-        var args = Array.prototype.slice.call(arguments);
-        fetch('/__run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: nombre, args: args }) })
-          .then(function (r) { return r.json(); })
-          .then(function (r) { setTimeout(function () { if (r.ok) ok && ok(r.valor); else mal && mal(new Error(r.error)); }, 120); })
-          .catch(function (err) { mal && mal(err); });
-      };
-    } });
-  }
-  return corredor(null, null);
-})() } };
-</script>`;
+// Los mismos encabezados de seguridad que Vercel (vercel.json); la página le habla a esta misma dirección.
+const vercel = JSON.parse(fs.readFileSync(path.join(RAIZ, "vercel.json"), "utf8"));
+const ENCABEZADOS = Object.fromEntries(vercel.headers[0].headers.map((h) => [h.key, h.value]));
+ENCABEZADOS["Content-Security-Policy"] = ENCABEZADOS["Content-Security-Policy"].replace(/connect-src [^;]+/, "connect-src 'self'");
+delete ENCABEZADOS["Strict-Transport-Security"];
+const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png", ".webmanifest": "application/manifest+json" };
 
-function pagina() {
-  let html = e.run("doGet").html;
-  // Sin internet en el entorno de pruebas: fuentes locales si las hay
-  if (fs.existsSync(FUENTES)) {
-    html = html.replace(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/, '<link rel="stylesheet" href="/__fuentes/fuentes.css">');
-  }
-  // Google agrega la etiqueta viewport (addMetaTag en doGet); aquí también, para probar en celular.
-  return html.replace("<head>", '<head><meta name="viewport" content="width=device-width, initial-scale=1">' + SHIM);
+async function main() {
+  const { armarPagina } = await import(pathToFileURL(path.join(RAIZ, "herramientas", "armar-web.mjs")).href);
+  let pagina = armarPagina(API);
+
+  http.createServer((req, res) => {
+    const ruta = decodeURIComponent(req.url.split("?")[0]);
+    if (ruta === "/exec" && req.method === "OPTIONS") { res.writeHead(405); return res.end(); }   // Google tampoco contesta la consulta previa
+    if (ruta === "/exec" && req.method === "POST") {
+      let cuerpo = "";
+      req.on("data", (c) => (cuerpo += c));
+      req.on("end", () => {
+        const r = e.post(cuerpo);
+        despues(() => {
+          res.writeHead(200, { "Content-Type": r.mime, "Access-Control-Allow-Origin": "*" });
+          res.end(JSON.stringify(r.json));
+        });
+      });
+      return;
+    }
+    if (ruta === "/exec" && req.method === "GET") {
+      const q = new URL(req.url, "http://x").searchParams;
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(e.run("doGet", { parameter: Object.fromEntries(q) }).html);
+    }
+    if (req.method === "GET" && ruta === "/__admin") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ usuario: m[1], clave: m[2] }));
+    }
+    if (req.method === "GET") {
+      const n = ruta === "/" ? "index.html" : ruta.replace(/^\/+/, "");
+      if (n === "index.html") {
+        try { pagina = armarPagina(API); } catch (err) {
+          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+          return res.end("✘ La página no se pudo armar:\n\n" + err.message);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(pagina, n)) {
+        res.writeHead(200, { ...ENCABEZADOS, "Content-Type": TIPOS[path.extname(n)] || "application/octet-stream" });
+        return res.end(pagina[n]);
+      }
+    }
+    res.writeHead(404, ENCABEZADOS);
+    res.end("No existe");
+  }).listen(PUERTO, () => console.log(`Control de Gestión (simulado) en http://localhost:${PUERTO}  ·  admin: ${m[1]} / ${m[2]}` +
+    (conBase ? "" : "  ·  base vacía (sin base/base.json)")));
 }
 
-http.createServer((req, res) => {
-  if (req.method === "GET" && (req.url === "/" || req.url.startsWith("/?"))) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    return res.end(pagina());
-  }
-  if (req.url === "/favicon.ico") { res.writeHead(204); return res.end(); }
-  if (req.method === "GET" && req.url === "/__admin") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ usuario: m[1], clave: m[2] }));
-  }
-  if (req.method === "GET" && req.url.startsWith("/__fuentes/")) {
-    const f = path.join(FUENTES, path.basename(req.url));
-    if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
-    res.writeHead(200, { "Content-Type": f.endsWith(".css") ? "text/css" : "font/ttf" });
-    return res.end(fs.readFileSync(f));
-  }
-  // Como la URL /exec de Apps Script: la usa la página publicada (Vercel).
-  // Google no contesta la consulta previa (OPTIONS); aquí tampoco, para que
-  // la prueba falle si el navegador la llegara a necesitar.
-  if (req.url === "/exec" && req.method === "OPTIONS") { res.writeHead(405); return res.end(); }
-  if (req.url === "/exec" && req.method === "POST") {
-    let cuerpo = "";
-    req.on("data", (c) => (cuerpo += c));
-    req.on("end", () => {
-      const r = e.post(cuerpo);
-      despues(() => {
-        res.writeHead(200, { "Content-Type": r.mime, "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify(r.json));
-      });
-    });
-    return;
-  }
-  if (req.method === "POST" && req.url === "/__run") {
-    let cuerpo = "";
-    req.on("data", (c) => (cuerpo += c));
-    req.on("end", () => {
-      let r;
-      try {
-        const { fn, args } = JSON.parse(cuerpo);
-        r = { ok: true, valor: e.run(fn, ...(args || [])) };
-      } catch (err) {
-        r = { ok: false, error: err.message };
-      }
-      despues(() => {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(r));
-      });
-    });
-    return;
-  }
-  res.writeHead(404);
-  res.end();
-}).listen(PUERTO, () => console.log(`Control de Gestión (simulado) en http://localhost:${PUERTO}  ·  admin: ${m[1]} / ${m[2]}`));
+main().catch((err) => { console.error("✘ " + err.message); process.exit(1); });

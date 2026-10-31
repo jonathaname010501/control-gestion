@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Entrar, contraseña, dos pasos y fin de sesión. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Entrar, contraseña, dos pasos y fin de sesión. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Entrar ───────────────────────── */
   function encabezadoInst() {
     var enc = (E.ini && E.ini.config.encabezados) || (E.publico && E.publico.encabezados) || [];
@@ -396,4 +395,3 @@
     llamar('estado', null, { silencioso: true }).then(function (p) { E.publico = p; E.publicoEn = Date.now(); }, function () {})
       .then(function () { if (!E.token) pantallaEntrar(mensaje); });
   }
-</script>

@@ -1,15 +1,16 @@
 # Instalar el Control de Gestión
 
-Hay dos partes:
+Hay dos partes, y las dos son necesarias:
 
-- **Parte A · Google** (obligatoria): la base, el servidor y los escaneos viven en Google.
-- **Parte B · GitHub + Vercel** (recomendada): la página se publica en Vercel con una
-  dirección propia y se actualiza sola con cada `git push`. Vercel **solo guarda la
+- **Parte A · Google** (carpeta `apps-script/`): la base, el servidor y los escaneos.
+  Son 7 archivos.
+- **Parte B · GitHub + Vercel** (carpeta `web/`): la página que abre la gente, con una
+  dirección propia. Se actualiza sola con cada `git push`. Vercel **solo guarda la
   página** (pantallas y estilos), ningún dato.
 
 Al final está la **Parte C**: cómo publicar cambios.
 
-Necesitas una cuenta de Gmail del área y, para la Parte B, GitHub, Vercel y Node.js 20 o más.
+Necesitas una cuenta de Gmail del área, GitHub, Vercel y (para la Parte C) Node.js 20 o más.
 
 ---
 
@@ -30,30 +31,28 @@ varias cuentas abiertas, usa una ventana de incógnito.
 4. Borra el `.xlsx` de tu Drive.
 5. ⚠️ **No compartas la hoja con nadie.**
 
-## A2 · Pegar el código
+## A2 · Pegar el código del servidor
 
 1. En la hoja: **Extensiones → Apps Script**.
 2. Cambia "Proyecto sin título" por **Control de Gestión**.
 3. **⚙ Configuración del proyecto** → marca **"Mostrar el archivo de manifiesto
    «appsscript.json» en el editor"**. Regresa al editor (`< >`).
-4. Crea los archivos. El editor agrega `.gs` o `.html` solo, así que escribe el
-   nombre **sin** extensión:
+4. Crea los archivos. El editor agrega `.gs` solo, así que escribe el nombre **sin**
+   extensión:
 
    | Archivo | Cómo | Contenido |
    |---|---|---|
    | `Servidor` | Renombra `Código` (⋮ → Cambiar nombre) | `apps-script/Servidor.gs` |
    | `Seguridad`, `Avisos`, `Respaldos`, `Plantillas`, `Instalacion` | **+ → Script** (o "Secuencia de comandos"), uno por archivo | `apps-script/<nombre>.gs` |
-   | `Index`, `Estilos`, `Excel` | **+ → HTML** | `apps-script/<nombre>.html` |
-   | `App`, `AppEntrada`, `AppQR`, `AppPortal`, `AppLibreta`, `AppDetalle`, `AppFormulario`, `AppInformes`, `AppAdmin`, `AppArranque` | **+ → HTML**, uno por archivo | `apps-script/<nombre>.html` |
    | `appsscript.json` | Ya existe | `apps-script/appsscript.json` |
 
-   En cada uno: borra lo que traiga, pega **todo** y guarda (Ctrl+S). Son 19 archivos
-   (20 con el manifiesto): si falta uno de los `App…`, la página marca error al abrirse.
+   En cada uno: borra lo que traiga, pega **todo** y guarda (Ctrl+S). Son 6 archivos
+   más el manifiesto. **Nada de HTML**: las pantallas viven en Vercel (Parte B).
 
    > Si no encuentras la opción para crear un script, pega el contenido de los `.gs`
    > **al final** de `Servidor`, uno tras otro. Funciona igual.
 
-   > Con clasp (Parte C) todo esto se hace con un solo comando: `npm run servidor:subir`.
+   > Con clasp (Parte C) todo esto se hace con un solo comando.
 
 ## A3 · Correr `instalar()`
 
@@ -83,27 +82,14 @@ veces que sea: lo que ya existe no lo toca.
 2. Descripción `Versión 1` · **Ejecutar como: Yo** · **Quién tiene acceso: Cualquier usuario**.
 3. **Implementar** → copia la **URL de la aplicación web** (termina en `/exec`).
 
-Esa URL ya funciona como app. Si haces la Parte B, va a quedar como **API**: la
-página de Vercel le habla a esa dirección.
+Esa URL es el **servidor**: la página de Vercel le habla a esa dirección (Parte B).
+Si la abres en el navegador solo verás un aviso; la app se abre en Vercel.
 
 > **¿Por qué "Cualquier usuario"?** La puerta la cuida la app con su propio
 > usuario y contraseña. Con cuentas Gmail, Google no le dice a la app quién entra,
 > y la página de Vercel necesita poder llamarla.
 
-## A5 · Primer ingreso
-
-1. Abre la URL `/exec` → entra con `admin` y la contraseña temporal → crea la tuya
-   (10 caracteres o más, letras y números, nada fácil de adivinar).
-2. **Usuarios → Editar** en `admin` → pon tu nombre (y tu correo, si quieres avisos).
-3. **Mi cuenta → Verificación en dos pasos → Activar** (el portal te lo recuerda).
-4. **Configuración**: pon el **plazo de respuesta**, los **días inhábiles** del año
-   («Agregar los de ley» y luego compáralos con la Gaceta Oficial de la CDMX) y, en
-   «"Sin acuse" cuenta desde», el día en que empiezan a usar el sistema. Cuando todos
-   los administradores tengan dos pasos, márcala como obligatoria.
-
-(Si vas a hacer la Parte B, puedes dar de alta a la gente después, ya en Vercel.)
-
-## A6 · Respaldo fuera de la cuenta dueña (recomendado)
+## A5 · Respaldo fuera de la cuenta dueña (recomendado)
 
 Los respaldos diarios quedan en el mismo Drive. Si la cuenta dueña tuviera un problema
 (la borran, la suspenden, le roban el acceso), también se irían. Para tener una copia
@@ -129,7 +115,7 @@ proyecto original (`PIMIENTA`): si se restaura en un proyecto nuevo, corre
 `restablecerAdministrador()`, y desde **Usuarios** dale a cada quien **Nueva contraseña**
 y marca **«Quitar su verificación en dos pasos»**. Los datos y escaneos no se pierden.
 
-## A7 · Borrador del oficio en Word (opcional)
+## A6 · Borrador del oficio en Word (opcional)
 
 1. En Google Docs, escribe el oficio con su formato y, donde va cada dato, un marcador:
    `{{NUMERO}}`, `{{FECHA_LARGA}}`, `{{DESTINATARIO}}`, `{{CARGO_DESTINATARIO}}`,
@@ -137,8 +123,8 @@ y marca **«Quitar su verificación en dos pasos»**. Los datos y escaneos no se
    LEEME.md, «Borrador del oficio en Word»).
 2. Mueve el documento a la carpeta **«Control de Gestión · Plantillas (NO COMPARTIR)»**
    que creó `instalar()`. Fuera de esa carpeta no se acepta.
-3. En la app: **Configuración → Borrador del oficio en Word** → pega el enlace del
-   documento → **Guardar**.
+3. En la app (cuando ya esté en Vercel, Parte B): **Configuración → Borrador del oficio
+   en Word** → pega el enlace del documento → **Guardar**.
 
 ---
 
@@ -178,14 +164,20 @@ y marca **«Quitar su verificación en dos pasos»**. Los datos y escaneos no se
 
 Si quieres un dominio propio: Vercel → Settings → Domains.
 
-## B3 · Una sola entrada
+## B3 · Primer ingreso
 
-1. En la app (ya en Vercel) → **Configuración → Dirección pública de la app** → pega la
-   dirección de Vercel → **Guardar**.
-2. Desde ese momento, si alguien abre la URL de Google `/exec`, solo verá un enlace a
-   Vercel. La API sigue funcionando.
-3. Ahora sí: **Usuarios → Nuevo usuario** para cada persona, y comparte la
-   **dirección de Vercel**.
+1. Abre la dirección de Vercel → entra con `admin` y la contraseña temporal del paso A3
+   → crea la tuya (10 caracteres o más, letras y números, nada fácil de adivinar).
+2. En el portal sale **«Falta guardar la dirección de la app»** → **Guardar esta
+   dirección**. Así el código QR del volante, los correos y la URL de Google `/exec`
+   llevan a Vercel. (También está en **Configuración → Dirección pública de la app**.)
+3. **Usuarios → Editar** en `admin` → pon tu nombre (y tu correo, si quieres avisos).
+4. **Mi cuenta → Verificación en dos pasos → Activar** (el portal te lo recuerda).
+5. **Configuración**: pon el **plazo de respuesta**, los **días inhábiles** del año
+   («Agregar los de ley» y luego compáralos con la Gaceta Oficial de la CDMX) y, en
+   «"Sin acuse" cuenta desde», el día en que empiezan a usar el sistema. Cuando todos
+   los administradores tengan dos pasos, márcala como obligatoria.
+6. **Usuarios → Nuevo usuario** para cada persona, y comparte la **dirección de Vercel**.
 
 ## B4 · Revisar seguridad y migración
 
@@ -197,23 +189,58 @@ Si quieres un dominio propio: Vercel → Settings → Domains.
 
 # Parte C · Publicar cambios
 
-El sistema tiene dos lados y los dos deben quedar al día:
+El sistema tiene dos lados, y **cada uno se publica solo cuando cambia**:
 
-| Lado | Dónde vive | Cómo se actualiza |
+| Lo que cambiaste | Dónde está | Qué hacer |
 |---|---|---|
-| **Servidor** (los `.gs`, y una copia de las pantallas) | Google Apps Script | Se sube el código y se publica una **versión nueva en la misma implementación** (la URL `/exec` no cambia). |
-| **Página** (`App*.html`, `Estilos.html`, `Excel.html`, `Index.html`) | Vercel | Sola, cada vez que haces `git push` (tarda 1 o 2 minutos). |
+| **Pantallas**, botones, textos, colores | `web/` | Solo `git push`. Vercel la publica en 1 o 2 minutos. **Google no se toca.** |
+| **El servidor**: guardar, permisos, correos, respaldos | `apps-script/*.gs` | Publicar el servidor (con clasp, C2; o a mano, C4) y luego `git push`. |
 
-Lo más fácil es el comando **`npm run publicar`**, que hace todo en orden (C1 y C2).
-Si no tienes clasp, puedes hacerlo a mano (C3).
+Lo más fácil es **`npm run publicar`** (C1): revisa qué cambió y hace solo lo necesario.
 
-## C1 · Preparar tu computadora (una sola vez)
+## C1 · Publicar un cambio: `npm run publicar`
 
 Abre una terminal **en la carpeta del proyecto** (en Windows: abre la carpeta
 `control-gestion` en el Explorador, escribe `cmd` en la barra de dirección y presiona
-Enter; también sirve PowerShell o Git Bash).
+Enter; también sirve PowerShell o Git Bash) y escribe el comando con una frase corta
+que diga qué cambió (entre comillas):
 
-1. **clasp** (la herramienta oficial de Google para subir código a Apps Script):
+```bash
+npm run publicar -- "Botón para imprimir más grande"
+```
+
+> En PowerShell también funciona sin los dos guiones: `npm run publicar "Botón más grande"`.
+
+Hace esto, en orden, y **se detiene en el primer paso que falle**, explicando qué hacer:
+
+| Paso | Qué hace | Si falla… |
+|---|---|---|
+| Antes de empezar | Revisa git, que `.gitignore` proteja los datos, que no haya archivos de datos por subir y que en `apps-script/` solo haya `.gs`. | No se toca nada. |
+| 1 · Pruebas | Corre `npm test`. | No se publica nada. |
+| 2 · Qué cambió | Compara los `.gs` con los que se publicaron la última vez. Si solo cambió la página, **se salta el paso 3**. | — |
+| 3 · Servidor | **Con clasp** (C2): `clasp push --force` y versión nueva **en la misma implementación** (la URL `/exec` no cambia). **Sin clasp**: te dice **qué archivos pegar** en el editor y espera a que lo hagas (C4). | La app sigue con el servidor anterior. |
+| ⚠ Columnas nuevas | Si el servidor agrega columnas a la hoja, **se detiene y te pide correr `instalar()`** (ver abajo). | La app sigue igual que antes. |
+| 4 · Revisar git | Comprueba que **solo** se suba código y documentación. Si aparece cualquier otro archivo (un escaneo PDF, una foto, un Excel, un `.json` exportado, `base/`, `capturas/`, llaves…), se detiene y te dice cuál es. | Se detiene antes de subir. |
+| 5 · GitHub | `git add`, `git commit -m "tu mensaje"` y `git push`. Vercel publica la página sola. | Te dice cómo terminar. |
+
+Opciones (van al final): `--servidor` publica el servidor aunque no haya cambiado;
+`--ya-publique-servidor` (sin clasp) ya pegaste los archivos y publicaste la versión;
+`--ya-corri-instalar` ya corriste `instalar()`.
+
+**Cuando hay columnas nuevas** (el comando lo avisa con ⚠):
+
+1. Abre la hoja → **Extensiones → Apps Script**.
+2. A la izquierda abre **`Instalacion.gs`**, elige **`instalar`** arriba y presiona **▶ Ejecutar**.
+3. Cuando el registro diga **✔ Todo en orden**, regresa a la terminal y contesta **s**.
+
+Mientras tanto la app que usa la gente sigue funcionando con la versión anterior.
+
+## C2 · clasp: publicar el servidor sin pegar archivos (opcional, una sola vez)
+
+Con clasp, `npm run publicar` sube el servidor solo. Sin clasp también funciona: te
+dice qué pegar (C4).
+
+1. Instala clasp (la herramienta oficial de Google para subir código a Apps Script):
 
    ```bash
    npm install -g @google/clasp
@@ -231,64 +258,44 @@ Enter; también sirve PowerShell o Git Bash).
    comandos** → cópialo.
 5. En la carpeta del proyecto, copia `.clasp.json.ejemplo` con el nombre `.clasp.json`
    y pega el ID donde dice `PEGA_AQUI…`. Este archivo no se sube a GitHub.
-6. Ten listo el repositorio de GitHub (Parte B1). `npm run publicar` usa el mismo `git push`.
+
+**La primera vez** que publique el servidor, `npm run publicar` te muestra las
+implementaciones del proyecto y te pide el ID de la que usa la app. Copia el que empieza
+con `AKfyc` y dice **«Versión…»** (no el que dice **@HEAD**), pégalo y presiona Enter.
+Se guarda en `.publicar.json` (tampoco va a GitHub) y ya no te lo vuelve a pedir.
 
 > 🔒 `clasp login` guarda una llave en tu computadora (`.clasprc.json`, en tu carpeta
 > de usuario) que da acceso al Drive de la cuenta dueña. No la compartas ni la subas a
 > GitHub. Por eso el servidor **no** se publica solo desde GitHub: esa llave tendría
 > que vivir en GitHub.
 
-## C2 · Publicar un cambio: `npm run publicar`
-
-En la terminal, dentro de la carpeta del proyecto, escribe el comando con una frase
-corta que diga qué cambió (entre comillas):
-
-```bash
-npm run publicar -- "Varios destinatarios y Mis asuntos"
-```
-
-> En PowerShell también funciona sin los dos guiones: `npm run publicar "Varios destinatarios"`.
-
-**La primera vez** te muestra las implementaciones del proyecto y te pide el ID de la
-que usa la app. Copia el que empieza con `AKfyc` y dice **«Versión…»** (no el que dice
-**@HEAD**), pégalo y presiona Enter. Se guarda en `.publicar.json` (tampoco va a
-GitHub) y ya no te lo vuelve a pedir.
-
-El comando hace esto, en orden, y **se detiene en el primer paso que falle**,
-explicando qué hacer:
-
-| Paso | Qué hace | Si falla… |
-|---|---|---|
-| Antes de empezar | Revisa que exista `.clasp.json`, que clasp tenga sesión, el ID de la implementación, git, que `.gitignore` proteja los datos y que no haya archivos de datos por subir (lo mismo que el paso 5). | No se toca nada. |
-| 1 · Pruebas | Corre `npm test`. | No se publica nada. |
-| 2 · Versiones | Revisa que `VERSION` (Servidor.gs) y `VERSION_APP` (App.html) sean iguales. | No se publica nada. |
-| 3 · Subir código | `clasp push --force`: sube los archivos de `apps-script/` al proyecto de Apps Script. **Todavía nadie lo ve.** | La app sigue igual que antes. |
-| ⚠ Columnas nuevas | Si la versión agrega columnas a la hoja, **se detiene y te pide correr `instalar()`** (ver abajo). | La app sigue igual que antes. |
-| 4 · Publicar | `clasp update-deployment <ID> -d "tu mensaje"`: crea la versión nueva **en la misma implementación**. Desde aquí la gente usa el servidor nuevo. | La app sigue con la versión anterior. |
-| 5 · Revisar git | Comprueba que **solo** se suba código y documentación. Si aparece cualquier otro archivo nuevo (un escaneo PDF, una foto, un Excel, un `.json` exportado, `base/`, `capturas/`, llaves…), se detiene y te dice cuál es. | Se detiene antes de subir. |
-| 6 · GitHub | `git add`, `git commit -m "tu mensaje"` y `git push`. Vercel publica la página sola. | El servidor ya quedó; solo falta GitHub (te dice cómo). |
-
-**Cuando hay columnas nuevas** (el comando lo avisa con ⚠), después del paso 3:
-
-1. Abre la hoja → **Extensiones → Apps Script**.
-2. A la izquierda abre **`Instalacion.gs`**, elige **`instalar`** arriba y presiona **▶ Ejecutar**.
-3. Cuando el registro diga **✔ Todo en orden**, regresa a la terminal y contesta **s**.
-
-Mientras tanto la app que usa la gente sigue funcionando con la versión anterior.
-Si nadie puede contestar la pregunta (por ejemplo, desde un programa), agrega
-`--ya-corri-instalar` al final del comando.
-
 > ⚠️ `clasp push` reemplaza **todos** los archivos del proyecto en línea con los de tu
-> carpeta `apps-script/`. Eso está bien: así no quedan copias viejas (por ejemplo un
-> `Servidor.gs.gs` creado a mano). No edites el código directamente en el editor de
-> Google si usas este comando: lo que cambies allá se pierde en el siguiente push.
+> carpeta `apps-script/`. Eso está bien: así no quedan copias viejas. No edites el código
+> directamente en el editor de Google si usas clasp: lo que cambies allá se pierde en
+> el siguiente push.
 
-## C3 · Sin clasp (a mano)
+## C3 · Cambiar solo la página, sin terminal
 
-1. Pega los archivos cambiados en el editor y guarda.
+Para un texto, un color o un botón no necesitas nada instalado:
+
+1. En github.com abre tu repositorio → carpeta `web/` (la app está en `web/app/`, los
+   colores en `web/estilos.css`).
+2. Abre el archivo → ✏ (Edit) → haz el cambio → **Commit changes**.
+3. Vercel publica la página sola en 1 o 2 minutos.
+
+Si algo quedó mal escrito, Vercel **no** publica la página rota: en Vercel →
+Deployments verás el error con el archivo y el renglón, y la gente sigue con la versión
+anterior. Corrige ese renglón y vuelve a guardar. (Con `npm run publicar` las pruebas
+corren antes de subir.)
+
+## C4 · El servidor a mano (sin clasp)
+
+Solo cuando cambió algún `.gs`. `npm run publicar` te dice exactamente cuáles.
+
+1. Pega en el editor **solo los archivos que cambiaron** y guarda.
 2. Si la versión agrega columnas: corre **`instalar()`** (Instalacion.gs → ▶ Ejecutar).
 3. **Implementar → Gestionar implementaciones → ✏** → Versión: **Nueva versión** → **Implementar**.
-4. En tu computadora: `git add -A`, `git commit -m "qué cambió"` y `git push` (Vercel publica la página).
+4. En tu computadora: `git push` (o vuelve a `npm run publicar` y contesta **s**).
 
 ⚠️ No uses "Nueva implementación": crea **otra URL** y habría que cambiar `CG_API_URL` en Vercel.
 
@@ -308,7 +315,11 @@ Si nadie puede contestar la pregunta (por ejemplo, desde un programa), agrega
 | «El código no es correcto» aunque lo copies bien | Revisa que la hora del celular esté en automático: los códigos dependen de la hora. |
 | No llegan los avisos por correo | Configuración → Avisos por correo prendido, y la persona con correo en Usuarios o Mi cuenta. Revisa la carpeta de spam. La Bitácora dice cuántos se mandaron cada día. |
 | Cambié algo a mano en la hoja y la app no lo muestra | La app guarda la lista en memoria hasta 15 min. Corre `revisarSeguridad` en el editor (la limpia) o espera. Mejor: cambia las cosas desde la app. |
-| El código QR del volante abre la URL de Google y no Vercel | Configuración → **Dirección pública de la app** → pega la dirección de Vercel y guarda. |
+| El código QR del volante o los correos abren la URL de Google | Configuración → **Dirección pública de la app** → pega la dirección de Vercel y guarda (o el botón «Guardar esta dirección» del portal). |
+| Al abrir la URL de Google `/exec` solo sale un aviso | Es normal: es el servidor. La app se abre en la dirección de Vercel. |
+| A los administradores les sale «Falta publicar el servidor» | La página necesita un servidor más nuevo que el publicado: `npm run publicar -- "…" --servidor`, o C4. |
+| Vercel no publicó: «web/app/…js:123: …» | Hay un error de escritura en ese archivo y renglón (una llave, un paréntesis o una coma). La gente sigue con la versión anterior; corrígelo y vuelve a subir. |
+| `npm run publicar` dice «En apps-script/ hay archivos que ya no van ahí» | Son las pantallas de antes de la 1.9.0: `git rm apps-script/*.html` y vuelve a correrlo. |
 | «Ya no se puede deshacer» | «Deshacer» dura 10 minutos, sirve una vez y solo para quien hizo el cambio. Después, cámbialo a mano (queda en la Bitácora). |
 | Un número apartado no se va a usar | Un administrador lo abre y lo **cancela** con el motivo; el número no se reutiliza. |
 | «Borrador en Word» dice que la plantilla no sirve | Que el documento siga en la carpeta «Plantillas (NO COMPARTIR)» y sea un documento de Google (no un .docx subido). |
@@ -320,11 +331,13 @@ Si nadie puede contestar la pregunta (por ejemplo, desde un programa), agrega
 ## Probar en tu computadora (opcional)
 
 ```bash
-npm test                     # 120 pruebas (las que usan los datos reales necesitan base/base.json)
-npm run local                # la app con la base migrada en http://localhost:4321
+npm test                     # 125 pruebas (las que usan los datos reales necesitan base/base.json)
+npm run local                # la app completa en http://localhost:4321 (con la base migrada si está; si no, vacía)
 npm run e2e                  # recorrido en navegador de lo nuevo (necesita Playwright)
 npm run empaquetar           # .zip del proyecto SIN datos, para compartir o pedir ayuda
 ```
+
+Con `npm run local`, si cambias algo en `web/` basta con recargar el navegador.
 
 En GitHub, las pruebas corren solas en cada `git push` (pestaña **Actions**); las que
 necesitan los datos reales se saltan allá.

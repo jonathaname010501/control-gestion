@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════════════════
 //  navegador.e2e.mjs · Recorrido en un navegador real (Playwright) de lo
-//  nuevo en 1.7.0 y 1.8.0, con la CSP de Vercel y también como Apps Script.
+//  nuevo en 1.7.0 y 1.8.0, con la CSP de Vercel (la página ya no vive en Apps Script).
 //
 //    npm run e2e
 //
@@ -331,22 +331,14 @@ try {
     await cel.close();
   });
 
-  await paso("Como Apps Script (/exec de Google): entra con código y abre el portal", async () => {
+  await paso("La URL de Google (/exec) ya no trae la app: solo dice dónde está", async () => {
     const gas = await navegador.newContext({ viewport: { width: 1280, height: 860 }, locale: "es-MX" });
     const g = await gas.newPage();
-    vigilar(g, "Apps Script");
-    await g.goto(`http://localhost:${P_SRV}/`);
-    await g.getByPlaceholder("nombre.apellido").fill(admin.usuario);
-    await g.locator("input[type=password]").first().fill(NUEVA);
-    await g.getByRole("button", { name: "Entrar" }).click();
-    await g.getByLabel("Código de 6 dígitos").fill(await codigoNuevo(secreto));
-    await g.getByRole("button", { name: "Verificar" }).click();
-    await g.locator(".ptarjeta").first().waitFor();
-    await cerrarAyuda(g);
-    const n = await g.locator(".ptarjeta").count();
-    await foto(g, "15-apps-script-portal.png");
+    await g.goto(`http://localhost:${P_SRV}/exec`);
+    await g.getByText("Control de Gestión").first().waitFor();
+    esperar(!(await g.locator("#app").count()), "la URL de Google volvió a armar la app");
+    await foto(g, "15-url-de-google.png");
     await gas.close();
-    return n + " tarjetas";
   });
 
   /* ═══ 1.8.0 ═══ */

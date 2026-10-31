@@ -3,6 +3,68 @@
 Cada versión dice qué hay que hacer al publicarla. Si usas `npm run publicar`, el
 comando hace casi todo y te avisa lo que falta (ver INSTALAR.md, Parte C).
 
+## 1.9.0 · Más fácil de mantener: la página vive solo en Vercel
+
+Para la gente no cambia nada: mismas pantallas, misma dirección, mismos datos. Lo que
+cambia es **cómo se actualiza**.
+
+**Antes**, la página existía dos veces: dentro de Apps Script (13 archivos `.html` con el
+código metido adentro) y en Vercel. Cualquier cambio, aunque fuera un botón, obligaba
+a subir los 20 archivos a Google, publicar una versión nueva, empatar `VERSION` con
+`VERSION_APP` y hacer `git push`.
+
+**Ahora** cada lado se publica solo cuando cambia:
+
+| Lado | Carpeta | Cómo se publica |
+|---|---|---|
+| Página: pantallas, textos, colores | `web/` | `git push` (o editar el archivo en github.com). Google no se toca. |
+| Servidor: guardar, permisos, correos | `apps-script/` | `npm run publicar`, o pegar **solo el `.gs` que cambió** y «Nueva versión». |
+
+- **Apps Script tiene 7 archivos** (6 `.gs` + `appsscript.json`) en vez de 20. Ningún HTML.
+- **La página son archivos normales** en `web/`: `index.html`, `estilos.css`, `excel.js`
+  y la app en `web/app/01-nucleo.js` … `99-arranque.js` (los antiguos `App*.html`, sin las
+  etiquetas `<script>`). Se juntan solos en orden de número.
+- **No hay que empatar versiones.** `VERSION_APP` desapareció. La página dice qué servidor
+  necesita (`SERVIDOR_MINIMO`) y solo avisa a los administradores si el publicado es
+  más viejo. «Qué hay de nuevo» sale cuando cambia `NOVEDADES` (ya no con cada versión).
+- **`npm run publicar` publica solo lo que cambió**: si no tocaste ningún `.gs`, no usa
+  clasp ni Google. Si cambiaste uno, lo publica (o, sin clasp, te dice exactamente qué
+  archivo pegar).
+- **Si escribes algo mal en `web/app/`**, la página no se publica rota: el armado se
+  detiene y dice el archivo y el renglón. En Vercel sigue la versión anterior.
+- **`npm run local`** arranca página y servidor en una sola dirección
+  (http://localhost:4321), con o sin `base/`. Cambias algo en `web/` y recargas.
+- **La URL de Google (`/exec`) ya no abre la app**: muestra un enlace a la página de
+  Vercel (y `?r=ID` lleva a ese registro). Si aún no está guardada la dirección, el
+  portal le ofrece al administrador un botón **«Guardar esta dirección»**.
+- El código QR del volante apunta a la dirección guardada o, si falta, a la página desde
+  donde se imprimió (antes podía apuntar a la URL de Google).
+
+**Al publicar esta versión (una sola vez):**
+
+1. Copia el contenido del zip encima de tu carpeta del proyecto (la de git) y borra
+   las pantallas viejas del servidor:
+
+   ```bash
+   git rm apps-script/*.html
+   ```
+
+   (Si se te olvida, `npm run publicar` se detiene y te lo recuerda.)
+2. **Con clasp:** `npm run publicar -- "1.9.0: la página vive solo en Vercel"`. Como es
+   la primera vez con el comando nuevo, publica el servidor completo; `clasp push`
+   borra solo los `.html` del proyecto de Apps Script.
+
+   **Sin clasp:** en el editor de Apps Script borra los 13 archivos HTML (`Index`,
+   `Estilos`, `Excel` y los diez `App…`), pega `Servidor.gs`, `Instalacion.gs` y
+   `Seguridad.gs`, y publica **Implementar → Gestionar implementaciones → ✏ → Nueva
+   versión**. Después, `git push` (o `npm run publicar -- "1.9.0" --ya-publique-servidor`).
+3. **No hace falta correr `instalar()`** (no hay columnas nuevas) **ni tocar Vercel**:
+   misma variable `CG_API_URL`, mismo `vercel.json`.
+4. Entra a la app como administrador. Si el portal dice «Falta guardar la dirección de
+   la app», presiona **Guardar esta dirección**.
+
+Si alguien todavía entraba por la URL de Google, ahora verá el enlace a Vercel.
+
 ## 1.8.0 · Más fácil de usar: apartar número, calendario, notas y atender en un toque
 
 **Al publicar: no hay columnas nuevas ni permisos nuevos → NO hace falta correr

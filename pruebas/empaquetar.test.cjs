@@ -35,7 +35,7 @@ function proyectoFalso() {
   const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "cg-emp-"));
   const poner = (f, c) => { fs.mkdirSync(path.dirname(path.join(raiz, f)), { recursive: true }); fs.writeFileSync(path.join(raiz, f), c); };
   poner("apps-script/Servidor.gs", "var VERSION = '9.9.9';\n");
-  poner("apps-script/App.html", "<script>var á = 'ñandú';</script>\n".repeat(50));
+  poner("web/app/01-nucleo.js", "var á = 'ñandú';\n".repeat(50));
   poner("apps-script/appsscript.json", "{}");
   poner("web/icono-192.png", Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   poner("herramientas/armar-web.mjs", "// x\n");
@@ -71,9 +71,9 @@ test("empaquetar: solo código y documentación, con una carpeta por versión", 
   assert.equal(r.status, 0, r.stderr + r.stdout);
   const z = leerZip(fs.readFileSync(destino));
   const nombres = Object.keys(z).sort();
-  assert.deepEqual(nombres, [".clasp.json.ejemplo", ".github/workflows/pruebas.yml", ".gitignore", "LEEME.md", "apps-script/App.html", "apps-script/Servidor.gs",
-    "apps-script/appsscript.json", "herramientas/armar-web.mjs", "package.json", "vercel.json", "web/icono-192.png"].map((f) => "control-gestion-9.9.9/" + f).sort());
-  assert.equal(z["control-gestion-9.9.9/apps-script/App.html"].toString("utf8"), fs.readFileSync(path.join(raiz, "apps-script/App.html"), "utf8"), "contenido idéntico (acentos incluidos)");
+  assert.deepEqual(nombres, [".clasp.json.ejemplo", ".github/workflows/pruebas.yml", ".gitignore", "LEEME.md", "apps-script/Servidor.gs",
+    "apps-script/appsscript.json", "herramientas/armar-web.mjs", "package.json", "vercel.json", "web/app/01-nucleo.js", "web/icono-192.png"].map((f) => "control-gestion-9.9.9/" + f).sort());
+  assert.equal(z["control-gestion-9.9.9/web/app/01-nucleo.js"].toString("utf8"), fs.readFileSync(path.join(raiz, "web/app/01-nucleo.js"), "utf8"), "contenido idéntico (acentos incluidos)");
   for (const f of ["base/", "capturas/", "dist/", ".git/", "node_modules/", ".clasp.json", ".clasprc.json", ".env", "Directorio.xlsx", "respaldo.csv", "apps-script/escaneo.pdf", "pruebas/exportado.json"]) {
     assert.match(r.stdout, new RegExp("· " + f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "avisa que dejó fuera " + f);
   }

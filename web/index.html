@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!--
+  Control de Gestión · la página (la publica Vercel).
+
+  Esta página se edita aquí, como cualquier página web. Al publicar,
+  herramientas/armar-web.mjs (Vercel lo corre solo):
+    · junta web/app/*.js, en orden de número, en app.js
+    · escribe config.js con la dirección del servidor (CG_API_URL en Vercel)
+    · le pone ?v=… a cada archivo de aquí, para que nadie se quede con la versión vieja
+  Sin <script> ni <style> dentro de esta página: la seguridad de Vercel
+  (vercel.json) solo deja correr archivos aparte.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Control de Gestión</title>
+  <meta name="application-name" content="Control de Gestión">
+  <meta name="apple-mobile-web-app-title" content="Control de Gestión">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#8f4889">
+  <link rel="icon" type="image/png" sizes="32x32" href="icono-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+  <link rel="apple-touch-icon" href="icono-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Abre de antemano la conexión con el servidor de Google (la primera llamada tarda menos) -->
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <div id="progreso" class="progreso" aria-hidden="true"></div>
+  <div id="app" class="app">
+    <div class="arranque"><div class="arranque__marca">Control de Gestión</div><div class="arranque__txt">Cargando…</div></div>
+  </div>
+  <div id="avisos" class="avisos" role="status" aria-live="polite"></div>
+  <script src="excel.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

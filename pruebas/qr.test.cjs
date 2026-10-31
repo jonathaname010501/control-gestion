@@ -1,4 +1,4 @@
-// El código QR de AppQR.html (hecho sin librerías) se lee con un lector real.
+// El código QR de web/app/03-qr.js (hecho sin librerías) se lee con un lector real.
 // Necesita Python 3 con OpenCV (pip install opencv-python-headless); si no está, se salta.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 const PY = ["python3", "python", "py"].find((p) => spawnSync(p, ["-c", "import cv2"], { encoding: "utf8" }).status === 0);
 
 function cargarQR() {
-  const src = fs.readFileSync(path.join(__dirname, "..", "apps-script", "AppQR.html"), "utf8").replace(/^\s*<script>/, "").replace(/<\/script>\s*$/, "");
+  const src = fs.readFileSync(path.join(__dirname, "..", "web", "app", "03-qr.js"), "utf8");
   const ctx = vm.createContext({ TextEncoder, Math, Array, Error, Infinity });
   vm.runInContext(src + "\nthis.QR = QR;", ctx);
   return ctx.QR;

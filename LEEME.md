@@ -7,7 +7,7 @@ en lugar del Excel "Minutario" capturado a mano.
   de Google Sheets y los escaneos van a una carpeta privada de Drive.
 - **Página en Vercel:** la gente entra por una dirección propia con usuario y
   contraseña. Vercel solo sirve la página; los datos nunca pasan por ahí ni se
-  guardan ahí. La misma app también funciona directo desde la URL de Google.
+  guardan ahí. Quien abra la URL de Google (`/exec`) solo ve un enlace a la página.
 
 Para instalarlo: **[INSTALAR.md](INSTALAR.md)**.
 
@@ -37,7 +37,7 @@ Igual que Gabinetes:
   filtra la lista.
 - **Pendientes, Directorio y Administración** (Usuarios, Bitácora, Configuración)
   también tienen su tarjeta y su pantalla.
-- **En Vercel funciona el botón Atrás** del navegador, y cada pantalla tiene su
+- **Funciona el botón Atrás** del navegador, y cada pantalla tiene su
   dirección (por ejemplo `#/oficios-entrantes`).
 
 ## Varios destinatarios (oficios salientes)
@@ -151,8 +151,9 @@ vez) con su número oficial, y se puede anotar para qué es («respuesta a la Al
   inhábiles rayados; «Solo lo mío» e «Incluir atendidos». Al tocar un día se ve la lista.
   Avisa si hay vencidos de meses anteriores.
 - **Volante con código QR**: el volante impreso trae un código que, con el celular, abre
-  ese registro (pide entrar primero). Para que apunte a Vercel, pon la dirección en
-  **Configuración → Dirección pública**; si no, apunta a la URL de Google.
+  ese registro (pide entrar primero). Apunta a la **Dirección pública** de Configuración
+  (el portal le ofrece al administrador guardarla con un botón) o, si no se ha puesto, a
+  la página desde donde se imprimió.
 - Los **correos de turno** de un solo asunto traen el botón «Abrir el asunto».
 
 ## Ordenar, filtros y ayuda
@@ -185,7 +186,7 @@ regresaron firmados.
 **«Abrir»** en Documento o Acuse ya no descarga el archivo: lo muestra en una ventana
 encima del registro, con **«Descargar»** y, en los PDF, **«Abrir en otra pestaña»**.
 Las imágenes se ven en cualquier equipo; los PDF se ven dentro de la ventana en
-computadora (en Vercel). En el celular, el visor de PDF no funciona dentro de una página,
+computadora. En el celular, el visor de PDF no funciona dentro de una página,
 así que ahí se abren en otra pestaña o se descargan. Cada vez que se abre un escaneo
 queda en la Bitácora, como antes.
 
@@ -284,7 +285,7 @@ vista previa y luego «Imprimir» abre el cuadro de impresión del navegador.
 
 - La hora sale sola si el registro se capturó en el sistema el mismo día que se
   recibió; si no, queda la raya para escribirla a mano (igual con lo que falte).
-- Funciona dentro de Google y en Vercel; en la impresora conviene «Tamaño real» o
+- En la impresora conviene «Tamaño real» o
   «100 %». No necesita el servidor nuevo: se arma en la página.
 
 ## Informes
@@ -511,25 +512,44 @@ Con un retraso simulado de 1.5 s por llamada (`CG_RETRASO_MS=1500 npm run local`
 
 ## Para quien le dé mantenimiento
 
+El sistema tiene **dos lados que se publican por separado**, y cada uno solo cuando cambia:
+
+| Lado | Carpeta | Qué es | Cómo se publica |
+|---|---|---|---|
+| **Página** | `web/` | Pantallas, botones, textos, colores | `git push` (Vercel la publica sola en 1 o 2 minutos). No se toca Google. |
+| **Servidor** | `apps-script/` | Guardar, permisos, correos, respaldos | `npm run publicar` (con clasp) o pegar el `.gs` que cambió y «Nueva versión». |
+
 ```
-apps-script/      El código de la app (lo que va al editor de Apps Script)
-  Servidor.gs       api(): permisos, registros, archivos, directorio, usuarios, caché, candado
+web/              LA PÁGINA (la publica Vercel). Archivos normales: se editan como cualquier página.
+  index.html        la página (sin código adentro: la seguridad de Vercel no lo deja correr)
+  estilos.css       identidad CDMX (morado, guinda, dorado; Cabin y Roboto)
+  excel.js          genera el .xlsx en el navegador (sin librerías externas)
+  manifest.webmanifest, icono-*.png   para instalarla como app en el celular
+  app/              la app, por partes. Se juntan en orden de número (01 → 99) en un solo app.js
+    01-nucleo.js      utilidades, llamar() (habla con el servidor), ventanas, avisos,
+                      SERVIDOR_MINIMO y NOVEDADES
+    02-entrada.js     entrar, contraseña, dos pasos, fin de sesión
+    03-qr.js          código QR (dos pasos y volante)
+    04-portal.js      estructura, rutas, portal, buscador, ayuda
+    05-libreta.js     lista, filtros, indicadores, cambios en lote
+    06-detalle.js     detalle, archivos, vista previa, volante, fotos
+    07-formulario.js  alta y edición, directorio, varios destinatarios
+    08-informes.js    exportación, pendientes, mis asuntos, calendario, informes
+    09-admin.js       directorio, usuarios, bitácora, configuración, mi cuenta
+    99-arranque.js    arranca la app (va al final)
+apps-script/      EL SERVIDOR (lo único que va al editor de Apps Script: 6 .gs + el manifiesto)
+  Servidor.gs       doPost → api(): permisos, registros, archivos, directorio, usuarios, caché, candado
   Seguridad.gs      entrar, contraseñas, bloqueos, equipo de confianza, dos pasos, consultas inusuales
   Avisos.gs         correos de turno y resumen diario (avisosDiarios)
   Respaldos.gs      respaldoDiario(), espejo de escaneos, carpeta externa, revisarRespaldos()
   Plantillas.gs     borrador del oficio en Word a partir de Google Docs
   Instalacion.gs    instalar(), restablecerAdministrador(), revisarSeguridad()
-  Index.html        cuerpo de la página (Google quita los comentarios HTML: no usarlos como marcadores)
-  Estilos.html      identidad CDMX (morado, guinda, dorado; Cabin y Roboto)
-  App.html          núcleo de la página: utilidades, llamar(), ventanas, avisos
-  App*.html         el resto, por pantallas: AppEntrada, AppQR, AppPortal, AppLibreta,
-                    AppDetalle, AppFormulario, AppInformes, AppAdmin, AppArranque
-  Excel.html        genera el .xlsx en el navegador (sin librerías externas)
   appsscript.json   zona horaria y configuración de la app web
 base/             La base inicial (Excel) y el resumen de la migración  (NO va a GitHub)
-herramientas/     migrar_minutario.py · armar-web.mjs (arma dist/ para Vercel)
-                  publicar.mjs (npm run publicar: pruebas, clasp, implementación y git)
+herramientas/     armar-web.mjs (Vercel lo corre solo: arma dist/ desde web/)
+                  publicar.mjs (npm run publicar: pruebas, servidor si cambió, y git)
                   empaquetar.mjs (npm run empaquetar: .zip sin datos para compartir)
+                  migrar_minutario.py
 vercel.json       Cómo publica Vercel y los encabezados de seguridad
 .github/          Las pruebas corren solas en GitHub en cada push
 .clasp.json.ejemplo  Para subir el servidor con clasp (ver INSTALAR.md, Parte C)
@@ -537,16 +557,28 @@ pruebas/          Simulador de Apps Script en Node + pruebas + recorrido en nave
 capturas/         Pantallas de la prueba en navegador  (NO va a GitHub)
 ```
 
-**Las partes de la página (`App*.html`)** se juntan en un solo programa: `doGet` las
-pega en el orden de `FRAGMENTOS_APP` (Servidor.gs) dentro de una sola función, y
-`armar-web.mjs` hace lo mismo para Vercel con la misma lista. Comparten variables
-como si fueran un solo archivo. Para agregar una parte nueva, créala y ponla en
-`FRAGMENTOS_APP`.
+**La página habla con el servidor** con `llamar()` (en `01-nucleo.js`): un `fetch` a la
+URL `/exec` que Vercel pone en `config.js` (variable `CG_API_URL`). En el servidor entra
+por `doPost` y todo pasa por `api()`. Apps Script ya no tiene pantallas: `doGet` solo
+muestra un enlace a la página (y `?r=ID` lleva a ese registro).
 
-La página de Vercel se arma con los **mismos** archivos de `apps-script/`, así que
-hay una sola copia de la app. Para hablar con el servidor, `llamar()` usa
-`google.script.run` cuando corre dentro de Google y `fetch` a la URL `/exec` cuando
-corre en Vercel (`doPost` en Servidor.gs). Las dos rutas pasan por la misma `api()`.
+**Las partes de `web/app/`** se juntan en un solo programa, en orden de número, dentro
+de una sola función: comparten variables como si fueran un solo archivo. Para una
+pantalla nueva, crea otro archivo con su número (por ejemplo `10-reportes.js`). Si un
+archivo tiene un error de escritura, `armar-web.mjs` se detiene y dice cuál y en qué
+renglón; en Vercel sigue publicada la versión anterior.
+
+**Versiones.** Ya no hay que empatar números:
+
+- `VERSION` (Servidor.gs) es la del servidor. Súbela cuando cambies algo que la página
+  vaya a necesitar.
+- `SERVIDOR_MINIMO` (01-nucleo.js) es la versión del servidor que necesita la página.
+  Solo se sube cuando la página use algo nuevo del servidor; si el servidor publicado
+  es más viejo, a los administradores les sale «Falta publicar el servidor».
+- `NOVEDADES` (01-nucleo.js): cámbialo solo cuando escribas novedades nuevas en
+  «Ayuda → Qué hay de nuevo»; así le salen una vez a cada quien.
+
+Un cambio que es solo de la página no necesita tocar ninguno de los tres.
 
 **Reglas para no abrir huecos de seguridad al modificar:**
 
@@ -555,8 +587,8 @@ corre en Vercel (`doPost` en Servidor.gs). Las dos rutas pasan por la misma `api
    esas. Hay una prueba que falla si aparece una función pública nueva.
 2. Todo lo que lee o escribe datos pasa por `api()`, y cada acción declara el rol
    mínimo en `ACCIONES_`.
-3. En `App.html`, la interfaz se arma con `h()`, que pone el texto como texto. No
-   uses `innerHTML` con datos.
+3. En la página (`web/app/`), la interfaz se arma con `h()`, que pone el texto como
+   texto. No uses `innerHTML` con datos.
 4. Si agregas una columna, agrégala **al final** en `COLS` (Servidor.gs) y en el script
    de migración, y corre `instalar()` para que la agregue a la hoja. (Si se olvida,
    `tabla_()` agrega sola los encabezados que falten al final y lo anota en la
@@ -582,14 +614,15 @@ corre en Vercel (`doPost` en Servidor.gs). Las dos rutas pasan por la misma `api
 opencv-python-headless para la del código QR; sin ellos esas pruebas se saltan):
 
 ```bash
-npm test               # 120 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
-npm run e2e            # recorrido en Chromium de lo nuevo (Vercel con su CSP y Apps Script); capturas en capturas/<versión>/
+npm test               # 125 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
+npm run e2e            # recorrido en Chromium de lo nuevo (con la CSP de Vercel); capturas en capturas/<versión>/
 npm run empaquetar     # .zip del código sin base/, capturas/ ni credenciales, junto a la carpeta del proyecto
-npm run local          # la app en http://localhost:4321 con la base migrada
+npm run local          # página + servidor en http://localhost:4321 (con la base migrada si está; si no, vacía)
+                       #   cambias algo en web/ → recargas el navegador y ya se ve
                        #   CG_RETRASO_MS=1500 → cada llamada tarda como en Google
                        #   CG_SIMULAR_150=1   → servidor sin lo nuevo (la página debe seguir funcionando)
-npm run web            # arma dist/ (necesita CG_API_URL)
-npm run publicar -- "mensaje"   # publica servidor y página (INSTALAR.md, Parte C)
+npm run web            # arma dist/ como Vercel (necesita CG_API_URL)
+npm run publicar -- "mensaje"   # publica lo que cambió: página y, si hace falta, servidor (INSTALAR.md, Parte C)
 ```
 
 El simulador (`pruebas/simulador.cjs`) imita Sheets, Drive, caché, candado y

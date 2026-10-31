@@ -309,15 +309,14 @@ function crearEntorno({ dueno = "dueno@gmail.com", ordenGs = "normal", iteracion
     flush: () => {},
   };
 
-  // ── HtmlService (plantillas <?!= ?>) ──────────────────────────────
-  // Como Google: al leer un archivo HTML del proyecto se pierden los comentarios <!-- -->.
-  const leerHtml = (n) => fs.readFileSync(path.join(DIR, n + ".html"), "utf8").replace(/<!--[\s\S]*?-->/g, "");
+  // ── HtmlService ───────────────────────────────────────────────────
+  // Desde la 1.9.0 el proyecto de Apps Script no tiene archivos .html (la página
+  // vive en web/): aquí no existe createHtmlOutputFromFile, para que una prueba
+  // truene si alguien vuelve a depender de uno.
   const salida = (html) => { const o = { html, getContent: () => o.html, setTitle: (t) => { o.titulo = t; return o; }, setFaviconUrl: (u) => { if (!/^https:\/\//.test(u)) throw new Error("favicon inválido"); o.favicon = u; return o; }, addMetaTag: () => o, setXFrameOptionsMode: () => o }; return o; };
   const HtmlService = {
     XFrameOptionsMode: { DEFAULT: "DEFAULT", ALLOWALL: "ALLOWALL" },
-    createHtmlOutputFromFile: (n) => salida(leerHtml(n)),
     createHtmlOutput: (html) => salida(String(html)),
-    createTemplateFromFile: (n) => ({ evaluate: () => salida(leerHtml(n).replace(/<\?!=\s*([\s\S]*?)\s*\?>/g, (_, expr) => String(vm.runInContext(expr, ctx)))) }),
   };
 
   const ContentService = {

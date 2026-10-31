@@ -1,4 +1,3 @@
-<script>
 /* ════════════════════════════════════════════════════════════════════
    ExcelCG · Genera archivos .xlsx en el navegador, SIN librerías de
    terceros (por seguridad: no se carga código ajeno donde viven los
@@ -235,4 +234,3 @@ var ExcelCG = (function () {
 
   return { libro: libro, _crc32: crc32, _serial: serial };
 })();
-</script>

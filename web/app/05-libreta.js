@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Libreta: lista, filtros, indicadores y selección en lote. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Libreta: lista, filtros, indicadores y selección en lote. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Libreta (su propia pantalla) ───────────────────────── */
   var refsReg = {};
   vistas.libreta = function () {
@@ -425,4 +424,3 @@
         } }, icono('editar'), 'Completar ahora') : null,
         h('button', { class: 'btn btn--prim', onclick: function () { rv.cerrar(); } }, 'Listo')] });
   }
-</script>

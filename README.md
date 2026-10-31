@@ -3,8 +3,12 @@
 Registro de oficios (salientes, entrantes, de conocimiento, circulares, tarjetas
 informativas y volantes de turno) que sustituye al Excel "Minutario".
 
-- **Servidor y datos:** Google Apps Script + Google Sheets + Drive (`apps-script/`).
-- **Página:** la misma app, publicada en Vercel (`npm run web` arma `dist/`).
+| Lado | Carpeta | Dónde vive | Cómo se actualiza |
+|---|---|---|---|
+| **Página** (lo que ve la gente) | `web/` | Vercel | `git push`: Vercel la publica sola |
+| **Servidor** y datos | `apps-script/` | Google Apps Script + Sheets + Drive | Solo cuando cambia un `.gs` (`npm run publicar`) |
+
+`npm run publicar -- "qué cambió"` revisa qué cambió y publica solo eso.
 
 | Documento | Para qué |
 |---|---|

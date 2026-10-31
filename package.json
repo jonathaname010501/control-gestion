@@ -1,8 +1,8 @@
 {
   "name": "control-gestion",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
-  "description": "Control de Gestión: servidor en Google Apps Script + página en Vercel",
+  "description": "Control de Gestión: servidor en Google Apps Script (apps-script/) + página en Vercel (web/)",
   "scripts": {
     "test": "node --test pruebas/servidor.test.cjs pruebas/mejoras.test.cjs pruebas/velocidad.test.cjs pruebas/publicar.test.cjs pruebas/excel.test.cjs pruebas/v170.test.cjs pruebas/v180.test.cjs pruebas/qr.test.cjs pruebas/empaquetar.test.cjs",
     "web": "node herramientas/armar-web.mjs",

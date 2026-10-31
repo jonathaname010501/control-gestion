@@ -12,7 +12,7 @@
  *     al instalar para que cifrar tarde ~0.35 s, y cada contraseña se vuelve
  *     a cifrar sola al entrar si usa el formato o las repeticiones anteriores.
  *   · Reglas: 10 caracteres o más, letras y números, sin usuario ni nombre y
- *     sin palabras obvias del trabajo (las mismas listas que App.html).
+ *     sin palabras obvias del trabajo (las mismas listas que la página, web/app/02-entrada.js).
  *   · Verificación en dos pasos (TOTP, RFC 6238), compatible con Google
  *     Authenticator, Microsoft Authenticator y similares.
  *   · Aviso de consultas inusuales (muchas aperturas o descargas en un día).
@@ -34,7 +34,7 @@ var TICKET_SEG = 300;                // tiempo para escribir el código de dos p
 var CACHE_MAX = 21600;               // CacheService guarda máximo 6 h
 
 /* Palabras que hacen fácil de adivinar una contraseña. Las MISMAS listas
-   están en AppEntrada.html (la prueba revisa que coincidan). Se comparan sin
+   están en web/app/02-entrada.js (la prueba revisa que coincidan). Se comparan sin
    acentos, en minúsculas y solo con las letras de la contraseña. */
 var CLAVE_CONTIENE = ['contrasena', 'password', 'passw', 'gestion', 'minutario', 'oficio', 'secretari', 'subsecretari',
   'administrador', 'usuario', 'bienvenid', 'territorio', 'gabinete', 'igualdad', 'ciudaddemexico', 'cdmx', 'sapci', 'stpi',

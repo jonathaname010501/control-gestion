@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Estructura, rutas, portal y buscador general. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Estructura, rutas, portal y buscador general. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Estructura ───────────────────────── */
   // Igual que Gabinetes: al entrar, un PORTAL con tarjetas de color; cada
   // tarjeta abre su propia pantalla, con "← Inicio" arriba.
@@ -25,8 +24,6 @@
     exportacion: { titulo: 'Exportación', icono: 'excel', color: 'verde', accion: 'exportar' },
     config: { titulo: 'Configuración', icono: 'engrane', color: 'morado' }
   };
-  var usaHistorial = !(window.google && google.script);
-
   // Instalar como app (Chrome/Edge en Android y computadora; en iPhone es
   // Compartir → Agregar a inicio). Solo en la versión publicada en Vercel.
   var promptInstalar = null;
@@ -53,16 +50,13 @@
     if (!E.tipo || ini.orden.indexOf(E.tipo) < 0) E.tipo = ini.orden[0];
     E.anio = E.anio || ini.anioActual;
     montar();
-    var desde = usaHistorial ? leerRuta() : null;
+    var desde = leerRuta();
     irA(desde ? desde.vista : 'inicio', desde ? desde.tipo : null, { reemplazar: true });
     vigilarSesion();
     precargar();
-    // Enlace directo a un registro (#/r/ID en Vercel, ?r=ID en la URL de Google): el código QR del volante
+    // Enlace directo a un registro (#/r/ID): el código QR del volante y los correos de turno
     var abrirId = desde && desde.abrir;
     if (abrirId) abrirDesdeEnlace(abrirId);
-    else if (!usaHistorial && window.google && google.script && google.script.url) {
-      try { google.script.url.getLocation(function (l) { var r = l && l.parameter && l.parameter.r; if (r && /^[A-Za-z0-9_-]{1,60}$/.test(r)) abrirDesdeEnlace(r); }); } catch (e) { /* sin ubicación */ }
-    }
     if (!abrirId) setTimeout(novedadesSiToca, 700);
   }
 
@@ -129,7 +123,7 @@
     return null;
   }
   window.addEventListener('popstate', function () {
-    if (!E.ini || !principal || !usaHistorial) return;
+    if (!E.ini || !principal) return;
     var d = leerRuta() || { vista: 'inicio' };
     irA(d.vista, d.tipo, { sinHistorial: true });
   });
@@ -154,7 +148,7 @@
     }
     E.vista = v;
     cerrarPanel();
-    if (usaHistorial && !o.sinHistorial) {
+    if (!o.sinHistorial) {
       try { history[o.reemplazar ? 'replaceState' : 'pushState']({}, '', rutaDe(v, E.tipo)); } catch (e) { /* sin historial */ }
     }
     vaciar(principal);
@@ -223,11 +217,25 @@
             'Activa la verificación en dos pasos: además de la contraseña, te pedirá un código de tu celular.'),
           h('button', { class: 'btn btn--chico', onclick: function () { pantallaActivar2fa(false); } }, 'Activar')));
       }
-      if (E.ini.version !== VERSION_APP && esAdmin()) {
+      if (!servidorAlMenos(SERVIDOR_MINIMO) && esAdmin()) {
         aviso.appendChild(h('div', { class: 'alerta alerta--aviso', style: { marginBottom: '20px' } },
           h('strong', null, 'Falta publicar el servidor. '),
-          'La página es la versión ' + VERSION_APP + ' y el servidor de Apps Script la ' + (E.ini.version || 'anterior') +
-          '. En el editor de Apps Script pega los archivos nuevos y ve a Implementar → Gestionar implementaciones → ✏ → Nueva versión.'));
+          'Esta página necesita el servidor ' + SERVIDOR_MINIMO + ' o más nuevo y el de Apps Script es el ' + (E.ini.version || 'anterior') +
+          '. Corre npm run publicar, o pega los .gs que cambiaron en el editor de Apps Script y ve a Implementar → Gestionar implementaciones → ✏ → Nueva versión.'));
+      }
+      // Sin «Dirección pública», el código QR, los correos y la URL de Google no saben dónde está la app
+      if (esAdmin() && tiene('guardarConfig') && !E.ini.config.url_web && /^https:\/\//.test(location.origin)) {
+        var aqui = location.origin + location.pathname.replace(/[^/]*$/, '');
+        aviso.appendChild(h('div', { class: 'alerta alerta--info alerta--accion', style: { marginBottom: '20px' } }, icono('flecha'),
+          h('div', null, h('strong', null, 'Falta guardar la dirección de la app. '),
+            'Así el código QR del volante, los correos y la URL de Google llevan a ' + aqui + '.'),
+          h('button', { class: 'btn btn--chico', onclick: function (ev) {
+            ev.target.disabled = true;
+            llamar('guardarConfig', { url_web: aqui.replace(/\/+$/, '') }).then(function () {
+              E.ini.config.url_web = aqui.replace(/\/+$/, '');
+              pintar(ind);
+            }, function (e) { ev.target.disabled = false; fallo(e); });
+          } }, 'Guardar esta dirección')));
       }
       ind = ind && ind.porTipo ? ind : { porTipo: {}, global: { porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0 } };
       var g = ind.global, mios = ind.mios || null;
@@ -381,7 +389,7 @@
   function novedadesSiToca() {
     if (!E.ini || E.vista !== 'inicio' || pila.length || panelActual) return;
     var visto = pref('visto:' + E.ini.yo.usuario);
-    if (visto === VERSION_APP) return;
+    if (visto === NOVEDADES) return;
     // Quien entra por primera vez (con contraseña temporal) ve los primeros pasos; los demás, lo nuevo
     mostrarGuia(!visto && E.nuevoUsuario ? 'inicio' : 'novedades');
   }
@@ -422,7 +430,7 @@
         pestanas.appendChild(h('button', { class: 'guia__tab' + (x[0] === m ? ' activa' : ''), role: 'tab', 'aria-selected': x[0] === m ? 'true' : 'false', onclick: function () { pintar(x[0]); } }, x[1]));
       });
       vaciar(cuerpo).appendChild(h('p', { class: 'guia__intro' }, m === 'novedades'
-        ? 'Versión ' + VERSION_APP + ': cosas para que capturar y dar seguimiento sea más rápido.'
+        ? 'Versión ' + NOVEDADES + ': cosas para que capturar y dar seguimiento sea más rápido.'
         : 'Lo básico para trabajar en Control de Gestión.'));
       cuerpo.appendChild(h('ul', { class: 'guia__lista' }, puntosGuia(m).map(function (x) {
         return h('li', { class: 'guia__i' }, h('span', { class: 'guia__ico' }, icono(x.ico)), h('div', null, h('strong', null, x.titulo), h('p', null, x.texto)));
@@ -430,8 +438,7 @@
     }
     pintar(modo || 'novedades');
     var v = ventana({ titulo: 'Ayuda', ancho: 620, sinFoco: true, cuerpo: [pestanas, cuerpo],
-      alCerrar: function () { pref('visto:' + E.ini.yo.usuario, VERSION_APP); },
+      alCerrar: function () { pref('visto:' + E.ini.yo.usuario, NOVEDADES); },
       pie: [h('button', { class: 'btn btn--prim', onclick: function () { v.cerrar(); } }, 'Entendido')] });
     return v;
   }
-</script>

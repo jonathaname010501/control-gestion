@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Directorio en el formulario, alta y edición, varios destinatarios. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Directorio en el formulario, alta y edición, varios destinatarios. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Buscador de personas ───────────────────────── */
   /** Personas del directorio que coinciden con el texto: primero por NOMBRE, después por cargo o dependencia. */
   function buscarEnDirectorio(texto, excluir) {
@@ -538,4 +537,3 @@
     if (c && Date.now() - c.cuando < 5 * 60 * 1000) return Promise.resolve(c.lista);
     return llamar('usuariosTurno', { tipo: t }).then(function (lista) { cacheTurno[t] = { cuando: Date.now(), lista: lista }; return lista; });
   }
-</script>

@@ -189,7 +189,7 @@ test("reglas de contraseña: 10+, sin usuario ni nombre, sin palabras obvias; ig
   for (const buena of ["Jacaranda2026x", "Colibri-Azul-77", "mi perro Bruno 2019", "Tejocote2026x"]) assert.equal(p(buena), null, buena);
   // la página usa las mismas listas
   const fs = require("node:fs"), path = require("node:path");
-  const pagina = fs.readFileSync(path.join(__dirname, "..", "apps-script", "AppEntrada.html"), "utf8");
+  const pagina = fs.readFileSync(path.join(__dirname, "..", "web", "app", "02-entrada.js"), "utf8");
   const lista = (src, nombre) => JSON.parse(src.match(new RegExp("var " + nombre + " = (\\[[\\s\\S]*?\\]);"))[1].replace(/'/g, '"'));
   const srv = fs.readFileSync(path.join(__dirname, "..", "apps-script", "Seguridad.gs"), "utf8");
   assert.deepEqual(lista(pagina, "CLAVE_CONTIENE"), lista(srv, "CLAVE_CONTIENE"));

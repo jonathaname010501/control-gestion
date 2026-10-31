@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Arranque (va al final: todo lo demás ya está definido). Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Arranque (va al final: todo lo demás ya está definido). Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Arranque ───────────────────────── */
   // Con sesión abierta (al recargar), el portal se pide directo: no hace falta esperar los
   // encabezados públicos, que solo usa la pantalla de entrada.
@@ -11,4 +10,3 @@
     vaciar(app).appendChild(h('div', { class: 'arranque' }, h('div', { class: 'arranque__marca' }, 'Control de Gestión'),
       h('div', { class: 'alerta alerta--error', style: { maxWidth: '520px' } }, e.message)));
   });
-</script>

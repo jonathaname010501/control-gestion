@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Directorio, Usuarios, Bitácora, Configuración y Mi cuenta. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Directorio, Usuarios, Bitácora, Configuración y Mi cuenta. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Directorio ───────────────────────── */
   vistas.directorio = function () {
     var q = h('input', { class: 'entrada', type: 'search', placeholder: 'Buscar nombre, cargo o dependencia…', 'aria-label': 'Buscar en el directorio' });
@@ -209,7 +208,7 @@
     var pl = h('input', { class: 'entrada', value: c.plantilla_OFS || '', maxlength: 200 });
     var ej = h('div', { class: 'campo__ayuda' });
     var plazo = h('input', { class: 'entrada', type: 'number', min: 0, max: 365, value: c.plazo_dias || '', style: { maxWidth: '160px' } });
-    var web = h('input', { class: 'entrada', type: 'url', value: c.url_web || '', maxlength: 200, placeholder: 'https://control-gestion.vercel.app' });
+    var web = h('input', { class: 'entrada', type: 'url', value: c.url_web || '', maxlength: 200, placeholder: location.origin || 'https://control-gestion.vercel.app' });
     function pintarEj() { ej.textContent = pl.value ? 'Ejemplo: ' + pl.value.replace('{NNN}', '417').replace('{AAAA}', E.ini.anioActual) : 'Sin plantilla: los oficios salientes solo tendrán consecutivo.'; }
     pl.addEventListener('input', pintarEj); pintarEj();
     var nuevo = tiene('guardarLote');   // el servidor ya es 1.7.0 (sabe guardar lo nuevo)
@@ -252,7 +251,7 @@
         campo('Encabezado · línea 1', e1), campo('Encabezado · línea 2', e2), campo('Encabezado · línea 3', e3, { ayuda: 'Salen en la pantalla de entrada y arriba de cada Excel.' }),
         h('div', null, campo('Número oficial de los oficios salientes', pl, { ayuda: '{NNN} es el consecutivo (001, 002…) y {AAAA} el año.' }), ej),
         campo('Plazo de respuesta por omisión (días hábiles)', plazo, { ayuda: 'Para entrantes: propone la fecha límite a partir de la fecha de recibido. Sin plazo no hay fecha límite y los avisos de «vencido» no funcionan.' }),
-        campo('Dirección pública de la app', web, { ayuda: 'Si la publicaste en Vercel, ponla aquí: la dirección de Google (/exec) solo mostrará un enlace a ella. Vacío = se usa la de Google.' }),
+        campo('Dirección pública de la app', web, { ayuda: 'La dirección de esta página (Vercel). La usan el código QR del volante y los correos, y la dirección de Google (/exec) solo muestra un enlace a ella.' }),
         nuevo ? h('div', { class: 'campo' }, h('label', { class: 'campo__et', for: 'cfg-inhabiles' }, 'Días inhábiles'),
           inh, h('div', { class: 'config__fila' }, cuentaInh,
             h('button', { type: 'button', class: 'btn btn--chico', onclick: function () { agregarFestivos(anio); } }, 'Agregar los de ley de ' + anio),
@@ -404,4 +403,3 @@
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }).catch(fallo).then(function () { if (boton) boton.disabled = false; });
   }
-</script>

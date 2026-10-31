@@ -194,18 +194,19 @@ test("sin Vercel, la dirección para el QR es la /exec; las listas traen quién 
   const e = preparar({ conBase: false });
   e.estado.url = "https://script.google.com/macros/s/AKfycbPRUEBA/exec";
   assert.equal(e.api(e.admin, "inicio").datos.config.url_app, "https://script.google.com/macros/s/AKfycbPRUEBA/exec");
-  assert.match(e.run("doGet", { parameter: { r: "r1" } }).html, /<script>\(function \(\) \{/, "sin Vercel abre la app normal");
+  assert.match(e.run("doGet", { parameter: { r: "r1" } }).html, /Esta es la dirección del servidor/, "sin dirección pública, dice qué es (la app ya no vive aquí)");
   const cap = alta(e, "beto", "captura", ["OFS"]);
   e.api(cap, "guardar", nuevoOficio());
   const lista = e.api(cap, "listar", { tipo: "OFS" }).datos;
   assert.equal(lista[0].creado_por, "beto");
 });
 
-test("versión 1.8.0 en el servidor y en la página", () => {
+test("versión 1.9.0 del servidor; la página sigue funcionando con un servidor 1.8.0", () => {
   const e = preparar({ conBase: false });
-  assert.equal(e.api(e.admin, "inicio").datos.version, "1.8.0");
-  const app = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps-script", "App.html"), "utf8");
-  assert.match(app, /var VERSION_APP = '1\.8\.0';/);
+  assert.equal(e.api(e.admin, "inicio").datos.version, "1.9.0");
+  const app = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "web", "app", "01-nucleo.js"), "utf8");
+  assert.match(app, /var SERVIDOR_MINIMO = '1\.8\.0';/, "1.9.0 no cambió nada que use la página");
+  assert.match(app, /var NOVEDADES = '1\.8\.0';/, "no hay novedades nuevas para la gente: no vuelve a salir «Qué hay de nuevo»");
 });
 
 testBase("con la base real: los números apartados en el minutario (411 a 415) cuentan como «por completar»", () => {

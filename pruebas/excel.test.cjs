@@ -1,4 +1,4 @@
-// Prueba del generador de Excel (Excel.html) en Node: el archivo debe abrirse
+// Prueba del generador de Excel (web/excel.js) en Node: el archivo debe abrirse
 // con openpyxl (Python) y con LibreOffice, con fechas reales y texto intacto.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -23,7 +23,7 @@ function buscarPython() {
 const PY = buscarPython();
 
 function cargarExcel() {
-  const src = fs.readFileSync(path.join(__dirname, "..", "apps-script", "Excel.html"), "utf8").replace(/<\/?script>/g, "");
+  const src = fs.readFileSync(path.join(__dirname, "..", "web", "excel.js"), "utf8");
   const ctx = vm.createContext({ TextEncoder, Uint8Array, Uint32Array, DataView, ArrayBuffer, Date, Math, String, Number, Object, Array, isNaN });
   vm.runInContext(src + ";this.ExcelCG = ExcelCG;", ctx);
   return ctx.ExcelCG;

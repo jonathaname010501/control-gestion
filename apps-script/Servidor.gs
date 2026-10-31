@@ -3,14 +3,15 @@
  *  CONTROL DE GESTIÓN · Servidor (Google Apps Script)
  *
  *  La base es la hoja de cálculo donde vive este script. La hoja NO se
- *  comparte con nadie: la gente entra solo por la app web, con usuario y
- *  contraseña propios, y todo pasa por api(), que revisa sesión y permisos
- *  en CADA llamada.
+ *  comparte con nadie: la gente entra solo por la app web (la página en
+ *  Vercel, carpeta web/), con usuario y contraseña propios. La página le
+ *  habla a doPost → api(), que revisa sesión y permisos en CADA llamada.
+ *  Aquí no hay pantallas: este proyecto de Apps Script es solo el servidor.
  *
  *  Reglas de seguridad que no hay que romper al modificar este archivo:
- *   1. Toda función que NO deba poder llamarse desde el navegador termina
- *      en guion bajo (_). Apps Script no deja que google.script.run llame
- *      funciones privadas. Las únicas públicas son: doGet, doPost, api,
+ *   1. Toda función que NO deba poder llamarse desde fuera termina en
+ *      guion bajo (_): no salen en el menú de ejecutar ni se pueden llamar
+ *      con google.script.run. Las únicas públicas son: doGet, doPost, api,
  *      instalar, restablecerAdministrador, revisarSeguridad, revisarRespaldos,
  *      respaldoDiario, respaldoSemanal y avisosDiarios (todas se protegen
  *      solas; ver Instalacion.gs, Respaldos.gs y Avisos.gs).
@@ -29,14 +30,15 @@
  * ════════════════════════════════════════════════════════════════════════
  */
 
-var VERSION = '1.8.0';   // súbela junto con VERSION_APP (App.html) en cada cambio
+// Versión del servidor. La página la compara con su SERVIDOR_MINIMO (web/app/01-nucleo.js):
+// súbela cuando la página vaya a necesitar algo nuevo de aquí. Lo demás no depende de ella.
+var VERSION = '1.9.0';
 var ZONA = 'America/Mexico_City';
 var SESION_SEG = 3 * 60 * 60;      // 3 h sin actividad cierran la sesión
 var MAX_ARCHIVO_MB = 10;
 var MAX_VARIOS = 100;              // destinatarios por vez en «Varios destinatarios»
 var MIMES_PERMITIDOS = ['application/pdf', 'image/jpeg', 'image/png'];
 
-var FUENTES_URL = 'https://fonts.googleapis.com/css2?family=Cabin:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap';
 var HOJAS = { REG: 'Registros', DIR: 'Directorio', USR: 'Usuarios', BIT: 'Bitacora', CFG: 'Config' };
 
 var COLS = {
@@ -105,58 +107,29 @@ function nuevaPeticion_() { MEMO_ = {}; }
 
 function doGet(e) {
   nuevaPeticion_();
-  // Si la app ya vive en otra dirección (Vercel), aquí solo se deja un enlace.
+  // La app (la página) vive en Vercel. Esta dirección es solo el servidor (API):
+  // si alguien la abre, ve un enlace a la app. ?r=ID (código QR del volante y
+  // correos viejos) lleva directo a ese registro.
   var web = '';
   try { web = config_().url_web || ''; } catch (e2) { /* aún sin instalar */ }
-  // ?r=ID (el código QR del volante): el enlace lleva directo a ese registro
   var r = e && e.parameter && /^[A-Za-z0-9_-]{1,60}$/.test(String(e.parameter.r || '')) ? String(e.parameter.r) : '';
   if (web && r) web = web.replace(/#.*$/, '').replace(/\/+$/, '') + '/#/r/' + r;
-  if (web) {
-    var enlace = HtmlService.createHtmlOutput('<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_top"></head>' +
-      '<body style="font-family:system-ui,sans-serif;display:grid;place-content:center;min-height:90vh;text-align:center;color:#55585a">' +
-      '<h2 style="color:#8f4889">Control de Gestión</h2><p>El sistema está en esta dirección:</p>' +
-      '<p><a style="font-size:18px;color:#8f4889" href="' + escHtml_(web) + '">' + escHtml_(web) + '</a></p></body></html>')
-      .setTitle('Control de Gestión');
-    try { enlace.setFaviconUrl(web.replace(/#.*$/, '').replace(/\/+$/, '') + '/icono-32.png'); } catch (e3) { /* sin ícono */ }
-    return enlace;
-  }
-  // La página se arma pegando los archivos HTML del proyecto. Ojo: Google
-  // quita los comentarios <!-- --> de los archivos, así que no se usan como
-  // marcadores: Index.html es solo el cuerpo y aquí se arma el resto.
-  var html = '<!DOCTYPE html><html lang="es"><head><base target="_top"><meta charset="utf-8">' +
-    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
-    '<link href="' + FUENTES_URL + '" rel="stylesheet">' +
-    incluir_('Estilos') + '</head><body>' + incluir_('Index') + incluir_('Excel') + scriptApp_() + '</body></html>';
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('Control de Gestión')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
-}
-
-function incluir_(nombre) {
-  return HtmlService.createHtmlOutputFromFile(nombre).getContent();
+  var cuerpo = web
+    ? '<p>El sistema está en esta dirección:</p><p><a style="font-size:18px;color:#8f4889" href="' + escHtml_(web) + '">' + escHtml_(web) + '</a></p>'
+    : '<p>Esta es la dirección del servidor (versión ' + escHtml_(VERSION) + ').</p><p>La app se abre en su página de Vercel.<br>' +
+      'Un administrador puede guardarla en <b>Configuración → Dirección pública de la app</b> para que aquí salga el enlace.</p>';
+  var pagina = HtmlService.createHtmlOutput('<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_top"></head>' +
+    '<body style="font-family:system-ui,sans-serif;display:grid;place-content:center;min-height:90vh;text-align:center;color:#55585a">' +
+    '<h2 style="color:#8f4889">Control de Gestión</h2>' + cuerpo + '</body></html>')
+    .setTitle('Control de Gestión');
+  if (web) { try { pagina.setFaviconUrl(web.replace(/#.*$/, '').replace(/\/+$/, '') + '/icono-32.png'); } catch (e3) { /* sin ícono */ } }
+  return pagina;
 }
 
 /**
- * La aplicación está repartida en varios archivos App*.html (cada uno con su
- * <script> para que Google lo trate como código y no como texto). Aquí se les
- * quita esa envoltura y se juntan en UNA sola función, igual que hace
- * herramientas/armar-web.mjs para Vercel. El orden importa: el último arranca.
- */
-var FRAGMENTOS_APP = ['App', 'AppEntrada', 'AppQR', 'AppPortal', 'AppLibreta', 'AppDetalle', 'AppFormulario', 'AppInformes', 'AppAdmin', 'AppArranque'];
-
-function scriptApp_() {
-  var partes = FRAGMENTOS_APP.map(function (n) {
-    return incluir_(n).replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
-  });
-  return '<script>(function () {\n\'use strict\';\n' + partes.join('\n') + '\n})();</script>';
-}
-
-/**
- * La misma api(), pero para la página publicada fuera de Google (Vercel).
- * El navegador manda POST con texto JSON { token, accion, datos } y recibe
- * la misma respuesta { ok, datos | codigo, error }. Las reglas de sesión y
- * permisos son exactamente las mismas: todo pasa por api().
+ * Entrada de la página (Vercel). El navegador manda POST con texto JSON
+ * { token, accion, datos } y recibe { ok, datos | codigo, error }. Las reglas
+ * de sesión y permisos están todas en api().
  */
 function doPost(e) {
   var r;

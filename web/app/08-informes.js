@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Excel, Exportación, Pendientes, Mis asuntos e Informes. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Excel, Exportación, Pendientes, Mis asuntos e Informes. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Excel ───────────────────────── */
   var ANCHOS = { numero: 24, dirigido: 34, asunto: 48, fecha: 12, fecha_recepcion: 12, firma: 34, elaboro: 16, acuse: 9, carpeta: 9, area: 30, observaciones: 44 };
   /** Arma y descarga el Excel con las filas que mandó el servidor (una hoja por libreta). */
@@ -158,7 +157,7 @@
     marco('misAsuntos').appendChild(h('div', null, h('div', { class: 'titulo-vista' }, h('h1', null, 'Mis asuntos'),
       h('span', { class: 'sub' }, 'Lo que te turnaron, de tus libretas')), cont));
     if (!tiene('misAsuntos')) {
-      vaciar(cont).appendChild(h('div', { class: 'tarjeta vacio' }, h('strong', null, 'Falta publicar el servidor'), 'Esta pantalla necesita la versión ' + VERSION_APP + ' del servidor de Apps Script.'));
+      vaciar(cont).appendChild(h('div', { class: 'tarjeta vacio' }, h('strong', null, 'Falta publicar el servidor'), 'Esta pantalla necesita una versión más nueva del servidor de Apps Script.'));
       return;
     }
     var gen = E.gen;
@@ -520,7 +519,7 @@
     var cont = marco('informes');
     cont.appendChild(h('div', { class: 'titulo-vista' }, h('h1', null, 'Informes'), h('span', { class: 'sub' }, 'Solo de tus libretas · sin registros cancelados')));
     if (!tiene('informes')) {
-      cont.appendChild(h('div', { class: 'tarjeta vacio' }, h('strong', null, 'Sin acceso a Informes'), 'Pide a un administrador que te dé permiso, o falta publicar el servidor ' + VERSION_APP + '.'));
+      cont.appendChild(h('div', { class: 'tarjeta vacio' }, h('strong', null, 'Sin acceso a Informes'), 'Pide a un administrador que te dé permiso, o falta publicar el servidor más reciente.'));
       return;
     }
     var st = E.inf = E.inf || { preset: 'anio', tipos: E.ini.orden.slice(), datos: null };
@@ -678,4 +677,3 @@
       descargarBytes(ExcelCG.libro(hojas), 'Informes Control de Gestión ' + d.desde + ' a ' + d.hasta + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }).catch(fallo);
   }
-</script>

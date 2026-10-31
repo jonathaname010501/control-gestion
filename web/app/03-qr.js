@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Código QR (para activar la verificación en dos pasos). Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs).
+  /* Control de Gestión · Código QR (para activar la verificación en dos pasos). Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js).
 
      Hecho aquí, sin librerías (la app no carga código de terceros): modo
      «bytes», corrección de errores nivel M, versiones 1 a 15 y la máscara
@@ -220,4 +219,3 @@
 
     return { matriz: matriz, svg: svg };
   })();
-</script>

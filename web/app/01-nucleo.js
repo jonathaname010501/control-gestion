@@ -1,20 +1,30 @@
-<script>
 /* ════════════════════════════════════════════════════════════════════
    Control de Gestión · Aplicación (navegador)
 
-   · Todo pasa por llamar(accion, datos) → google.script.run.api(token,…)
+   · Todo pasa por llamar(accion, datos) → POST a la URL /exec de Apps
+     Script (window.CG_API, en config.js).
    · Nada de innerHTML con datos: la interfaz se arma con h(), que crea
      nodos y pone el texto como texto. Así un asunto con etiquetas HTML se
      ve tal cual y no se ejecuta.
    · El token de sesión vive en sessionStorage (se borra al cerrar la
      pestaña) y la sesión expira sola en el servidor tras 3 h sin uso.
-   ════════════════════════════════════════════════════════════════════ */
-  // (La envoltura «(function () { 'use strict'; … })();» la ponen doGet() en Servidor.gs
-  //  y herramientas/armar-web.mjs al juntar App*.html: aquí van solo las partes.)
 
-  // Versión de esta página. Debe coincidir con VERSION de Servidor.gs: si la
-  // página (Vercel) se actualiza y el servidor (Apps Script) no, se avisa.
-  var VERSION_APP = '1.8.0';
+   La app está repartida en los archivos de web/app/. Al publicar se juntan
+   en orden de número (01, 02… 99) dentro de UNA sola función
+   «(function () { 'use strict'; … })();» (herramientas/armar-web.mjs), así
+   que comparten variables como si fueran un solo archivo. Para una pantalla
+   nueva: crea otro archivo con su número (por ejemplo 10-reportes.js).
+   ════════════════════════════════════════════════════════════════════ */
+
+  // Versión MÍNIMA del servidor (VERSION en apps-script/Servidor.gs) que necesita
+  // esta página. Súbela solo cuando la página use algo nuevo del servidor: si el
+  // publicado es más viejo, a los administradores les sale el aviso en el portal.
+  // Un cambio que es solo de la página NO necesita tocar este número.
+  var SERVIDOR_MINIMO = '1.8.0';
+
+  // Las novedades de «Ayuda → Qué hay de nuevo» (puntosGuia, en 04-portal.js).
+  // Cámbialo solo cuando escribas novedades nuevas: le salen una vez a cada quien.
+  var NOVEDADES = '1.8.0';
 
   /* ───────────────────────── Utilidades ───────────────────────── */
   var ICONOS = {
@@ -178,11 +188,9 @@
     if (enVuelo > 0) b.classList.add('activo'); else b.classList.remove('activo');
   }
   /**
-   * Dos caminos al mismo servidor:
-   *  · Dentro de Google (la URL /exec): google.script.run.api(…)
-   *  · Publicada fuera (Vercel): fetch POST a la URL /exec configurada en
-   *    config.js (window.CG_API). Se manda como text/plain para que el
-   *    navegador no haga la consulta previa (Apps Script no la contesta).
+   * Al servidor: fetch POST a la URL /exec configurada en config.js
+   * (window.CG_API). Se manda como text/plain para que el navegador no haga
+   * la consulta previa (Apps Script no la contesta).
    */
   /* Cuánto se espera a Google antes de rendirse. Si es algo que escribe, no se
      sabe si alcanzó a guardarse: se dice así, para que no se capture dos veces. */
@@ -201,13 +209,6 @@
   function transporte(accion, datos) {
     var cuerpo = { token: E.token, accion: accion, datos: datos || {} };
     var limite = TIEMPO_MS[accion] || 45000;
-    if (window.google && google.script && google.script.run) {
-      return new Promise(function (ok, mal) {
-        var reloj = setTimeout(function () { mal(errorTiempo(accion)); }, limite);
-        google.script.run.withSuccessHandler(function (r) { clearTimeout(reloj); ok(r); })
-          .withFailureHandler(function (x) { clearTimeout(reloj); mal(x); }).api(cuerpo.token, cuerpo.accion, cuerpo.datos);
-      });
-    }
     if (!window.CG_API) return Promise.reject(new Error('Falta configurar la dirección del servidor (CG_API_URL).'));
     var control = typeof AbortController === 'function' ? new AbortController() : null;
     var vencido = false;
@@ -266,9 +267,7 @@
     }, function (err) {
       if (!o.silencioso) progreso(-1);
       if (err && (err.codigo === 'SERVIDOR' || err.codigo === 'TIEMPO')) throw err;
-      var e = new Error(window.CG_API && !(window.google && google.script)
-        ? 'No hubo conexión con el servidor de Google. Revisa tu internet; si sigue igual, revisa que la implementación diga «Cualquier usuario» y que CG_API_URL en Vercel sea la URL /exec.'
-        : 'No hubo conexión con el servidor. Revisa tu internet e intenta de nuevo.');
+      var e = new Error('No hubo conexión con el servidor de Google. Revisa tu internet; si sigue igual, revisa que la implementación diga «Cualquier usuario» y que CG_API_URL en Vercel sea la URL /exec.');
       e.codigo = 'RED';
       throw e;
     });
@@ -362,11 +361,12 @@
   function porCompletar(r) { return !!r && !String(r.asunto || '').trim() && r.estatus !== 'Cancelado'; }
   function insCompletar() { return h('span', { class: 'ins ins--completar', title: 'Número apartado: falta capturar el oficio' }, icono('apartar'), 'Por completar'); }
 
-  /** Enlace que abre un registro directo, después de entrar (código QR del volante): #/r/ID en Vercel, ?r=ID en la URL de Google. */
+  /** Enlace que abre un registro directo, después de entrar (código QR del volante): <dirección de la app>/#/r/ID.
+   *  Es la «Dirección pública» de Configuración o, si no se ha puesto, la de esta misma página. */
   function enlaceRegistro(id) {
-    var base = String((E.ini && E.ini.config && E.ini.config.url_app) || '');
-    if (!base || !/^[A-Za-z0-9_-]{1,60}$/.test(String(id || ''))) return '';
-    return /\/exec\b|script\.google/.test(base) ? base.replace(/[?#].*$/, '') + '?r=' + id : base.replace(/#.*$/, '').replace(/\/+$/, '') + '/#/r/' + id;
+    if (!/^[A-Za-z0-9_-]{1,60}$/.test(String(id || ''))) return '';
+    var base = String((E.ini && E.ini.config && E.ini.config.url_web) || (location.origin + location.pathname.replace(/[^/]*$/, '')));
+    return base.replace(/[?#].*$/, '').replace(/\/+$/, '') + '/#/r/' + id;
   }
   function esActivo(r) { return r.estatus === 'Pendiente' || r.estatus === 'En trámite'; }
   /** Sábado, domingo o día inhábil de Configuración. */
@@ -497,4 +497,3 @@
     for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
-</script>

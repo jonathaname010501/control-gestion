@@ -1,5 +1,4 @@
-<script>
-  /* Control de Gestión · Detalle, archivos, vista previa, volante y fotos. Es una parte de la app: se junta con las demás App*.html (ver FRAGMENTOS_APP en Servidor.gs). */
+  /* Control de Gestión · Detalle, archivos, vista previa, volante y fotos. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Detalle ───────────────────────── */
   var panelActual = null;
   function cerrarPanel() {
@@ -230,9 +229,8 @@
   }
 
   /* ───────────────────────── Volante de recepción (media carta) ───────────────────────── */
-  // Se arma con h() (texto como texto) y se imprime con window.print(): funciona
-  // dentro de Google (el marco de Apps Script permite «allow-modals») y en Vercel
-  // (sin estilos en línea: el tamaño media carta está en Estilos.html, @page volante).
+  // Se arma con h() (texto como texto) y se imprime con window.print()
+  // (sin estilos en línea: el tamaño media carta está en estilos.css, @page volante).
   function hojaVolante(r) {
     var t = r.tipo, def = tipoDef(t), enc = E.ini.config.encabezados || [];
     var hora = r.origen === 'App' && String(r.creado_en).slice(0, 10) === String(r.fecha_recepcion || '') ? String(r.creado_en).slice(11, 16) : '';
@@ -421,7 +419,7 @@
       var esPdf = a.mime === 'application/pdf';
       if (!esPdf) {
         cuerpo.appendChild(h('img', { class: 'previa__img', src: url, alt: a.nombre }));
-      } else if (usaHistorial && !esCelular()) {
+      } else if (!esCelular()) {
         cuerpo.appendChild(h('iframe', { class: 'previa__pdf', src: url, title: a.nombre }));
       } else {
         cuerpo.appendChild(h('div', { class: 'previa__aviso' }, icono('archivo'), h('div', null, h('strong', null, a.nombre), h('span', null, 'PDF · ' + tamano(bytes.length)))));
@@ -478,4 +476,3 @@
       asunto: 'Respuesta ' + (orig.numero ? 'al oficio ' + orig.numero : 'a ' + tipoDef(orig.tipo).singular.toLowerCase() + ' ' + etiquetaNum(orig)) + (orig.asunto ? ': ' + orig.asunto : '')
     }, original: orig });
   }
-</script>

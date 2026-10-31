@@ -56,18 +56,18 @@ test("solo estas funciones se pueden llamar desde el navegador", () => {
   assert.throws(() => e.run("hashClave_", "x"), /no es una función pública/);
 });
 
-test("doGet arma la página completa con estilos, Excel y app (aunque Google quite los comentarios)", () => {
+test("Apps Script es solo el servidor: sin archivos .html, y doGet ya no arma la app", () => {
+  const dir = path.join(__dirname, "..", "apps-script");
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => !/\.gs$/.test(n) && n !== "appsscript.json"), [], "en apps-script/ solo van los .gs y appsscript.json (la página vive en web/)");
   const e = crearEntorno();
   const html = e.run("doGet").html;
-  assert.match(html, /^<!DOCTYPE html><html lang="es"><head>/);
-  assert.match(html, /<style>[\s\S]*--color-morado: #8f4889[\s\S]*<\/style>\s*<\/head><body>/, "estilos dentro del head");
-  assert.match(html, /<div id="app" class="app">/);
-  assert.match(html, /<script>[\s\S]*var ExcelCG = [\s\S]*<\/script>/);
-  assert.match(html, /<script>[\s\S]*function llamar\(accion, datos(, o)?\)[\s\S]*<\/script>\s*<\/body><\/html>$/);
-  assert.equal((html.match(/<script>/g) || []).length, 2, "solo los dos bloques de código");
+  assert.match(html, /^<!DOCTYPE html>/);
+  assert.match(html, /Esta es la dirección del servidor \(versión \d+\.\d+\.\d+\)/);
+  assert.match(html, /Dirección pública de la app/);
+  assert.doesNotMatch(html, /<script|id="app"|function llamar/, "ni la app ni código");
 });
 
-testBase("API para Vercel (doPost): mismas reglas que google.script.run", () => {
+testBase("API para Vercel (doPost): mismas reglas que api()", () => {
   const e = preparar();
   const est = e.post({ accion: "estado" });
   assert.equal(est.mime, "application/json");
@@ -453,7 +453,7 @@ test("sin base cargada: instalar en una hoja vacía funciona", () => {
   assert.equal(e.api(e.admin, "obtener", { id: r2.id }).datos.registro.carpeta, "007", "no se pierde el cero a la izquierda");
 });
 
-test("armar-web: arma dist/ para Vercel sin código en línea y exige la URL del servidor", () => {
+test("armar-web: arma dist/ para Vercel desde web/, sin código en línea, y exige la URL del servidor", () => {
   const { execFileSync, spawnSync } = require("node:child_process");
   const raiz = path.join(__dirname, "..");
   const sin = spawnSync(process.execPath, ["herramientas/armar-web.mjs"], { cwd: raiz, env: { ...process.env, CG_API_URL: "" } });
@@ -467,6 +467,14 @@ test("armar-web: arma dist/ para Vercel sin código en línea y exige la URL del
   assert.equal(fs.readFileSync(path.join(raiz, "dist", "config.js"), "utf8").includes('"https://script.google.com/macros/s/AKfycbPRUEBA_1-2/exec"'), true);
   const app = fs.readFileSync(path.join(raiz, "dist", "app.js"), "utf8");
   assert.doesNotMatch(app, /<\/?script>\s*$/);
+  assert.match(app, /^\(function \(\) \{\n'use strict';\n\/\* ── web\/app\/01-nucleo\.js ── \*\//, "las partes van juntas, en orden de número, dentro de una sola función");
+  const orden = [...app.matchAll(/\/\* ── web\/app\/([^ ]+) ── \*\//g)].map((x) => x[1]);
+  assert.deepEqual(orden, fs.readdirSync(path.join(raiz, "web", "app")).filter((n) => n.endsWith(".js")).sort());
+  assert.equal(orden.at(-1), "99-arranque.js", "el arranque va al final");
+  assert.doesNotMatch(app, /google\.script/, "la página ya no corre dentro de Google");
+  assert.match(html, /<script src="excel\.js\?v=[0-9a-f]{10}"><\/script>\s*<script src="config\.js\?v=[0-9a-f]{10}"><\/script>\s*<script src="app\.js/);
+  assert.match(html, /href="estilos\.css\?v=[0-9a-f]{10}"/);
+  assert.equal(fs.readFileSync(path.join(raiz, "dist", "estilos.css"), "utf8"), fs.readFileSync(path.join(raiz, "web", "estilos.css"), "utf8"));
   const csp = JSON.parse(fs.readFileSync(path.join(raiz, "vercel.json"), "utf8")).headers[0].headers.find((h) => h.key === "Content-Security-Policy").value;
   assert.match(csp, /script-src 'self';/);
   assert.match(csp, /connect-src https:\/\/script\.google\.com https:\/\/script\.googleusercontent\.com;/);
@@ -501,8 +509,30 @@ testBase("indicadores del portal: por libreta y solo de las libretas propias", (
   assert.ok(e.api(cap, "inicio").datos.indicadores.porTipo.CIR.total >= 77);
 });
 
-test("la versión de la página y la del servidor coinciden", () => {
-  const app = fs.readFileSync(path.join(__dirname, "..", "apps-script", "App.html"), "utf8").match(/var VERSION_APP = '([^']+)'/)[1];
-  const srv = fs.readFileSync(path.join(__dirname, "..", "apps-script", "Servidor.gs"), "utf8").match(/var VERSION = '([^']+)'/)[1];
-  assert.equal(app, srv, "sube las dos juntas");
+test("la página no pide un servidor más nuevo que el de apps-script/", () => {
+  const min = fs.readFileSync(path.join(__dirname, "..", "web", "app", "01-nucleo.js"), "utf8").match(/var SERVIDOR_MINIMO = '(\d+\.\d+\.\d+)'/)[1];
+  const srv = fs.readFileSync(path.join(__dirname, "..", "apps-script", "Servidor.gs"), "utf8").match(/var VERSION = '(\d+\.\d+\.\d+)'/)[1];
+  const n = (v) => v.split(".").reduce((t, x) => t * 1000 + Number(x), 0);
+  assert.ok(n(min) <= n(srv), `SERVIDOR_MINIMO (${min}) no puede ser mayor que VERSION (${srv})`);
+});
+
+test("armar-web: si una parte de web/app/ tiene un error, dice el archivo y el renglón", async () => {
+  const os = require("node:os");
+  const { pathToFileURL } = require("node:url");
+  const { armarPagina } = await import(pathToFileURL(path.join(__dirname, "..", "herramientas", "armar-web.mjs")).href);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cg-web-"));
+  fs.cpSync(path.join(__dirname, "..", "web"), tmp, { recursive: true });
+  const api = "https://script.google.com/macros/s/AKfycbPRUEBA/exec";
+  assert.match(armarPagina(api, { carpeta: tmp })["app.js"], /function llamar\(/);
+  fs.writeFileSync(path.join(tmp, "app", "10-nueva.js"), "  function nueva() {\n    return 1;\n  \n");   // falta la llave de cierre
+  assert.throws(() => armarPagina(api, { carpeta: tmp }), /web\/app\/10-nueva\.js:\d+/);
+  fs.writeFileSync(path.join(tmp, "app", "10-nueva.js"), "<script>\n  function nueva() { return 1; }\n</script>\n");
+  assert.throws(() => armarPagina(api, { carpeta: tmp }), /quítale las etiquetas <script>/);
+  fs.rmSync(path.join(tmp, "app", "10-nueva.js"));
+  fs.writeFileSync(path.join(tmp, "app", "nueva.js"), "  function nueva() { return 1; }\n");
+  assert.throws(() => armarPagina(api, { carpeta: tmp }), /empieza con su número/);
+  fs.rmSync(path.join(tmp, "app", "nueva.js"));
+  fs.writeFileSync(path.join(tmp, "index.html"), fs.readFileSync(path.join(tmp, "index.html"), "utf8").replace("</body>", "<script>alert(1)</script></body>"));
+  assert.throws(() => armarPagina(api, { carpeta: tmp }), /no puede llevar <script>/);
+  fs.rmSync(tmp, { recursive: true, force: true });
 });
