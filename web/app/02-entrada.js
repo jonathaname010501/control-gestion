@@ -1,8 +1,11 @@
   /* Control de Gestión · Entrar, contraseña, dos pasos y fin de sesión. Es una parte de la app: se junta con las demás de web/app/ (ver 01-nucleo.js). */
   /* ───────────────────────── Entrar ───────────────────────── */
+  // Los encabezados que se pintan EN PANTALLA (pie de la entrada y del portal, y subtítulo del portal).
+  // La línea «Dirección Ejecutiva de Gabinetes…» no se muestra aquí. Se omite solo al pintar: sigue en la
+  // configuración y en los informes (Excel/PDF) y la hoja volante, que usan los encabezados completos.
   function encabezadoInst() {
     var enc = (E.ini && E.ini.config.encabezados) || (E.publico && E.publico.encabezados) || [];
-    return enc;
+    return enc.filter(function (linea) { return !/direcci[oó]n ejecutiva de gabinetes/i.test(String(linea)); });
   }
 
   // Recordar SOLO el usuario (nunca la contraseña) en este equipo, si la persona lo pide.

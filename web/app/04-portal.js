@@ -182,7 +182,7 @@
     principal.appendChild(h('div', { class: 'portal' },
       h('header', { class: 'pcab' },
         h('div', { class: 'pcab__marca' }, h('img', { class: 'pcab__logo', src: LOGO, alt: 'Territorios de Paz e Igualdad', width: 42, height: 42 }),
-          h('div', { class: 'pcab__txt' }, h('p', { class: 'pcab__org' }, 'Control de Gestión'), h('p', { class: 'pcab__sub' }, (ini.config.encabezados || []).join(' · ')))),
+          h('div', { class: 'pcab__txt' }, h('p', { class: 'pcab__org' }, 'Control de Gestión'), h('p', { class: 'pcab__sub' }, encabezadoInst().join(' · ')))),
         h('div', { class: 'pcab__user' },
           promptInstalar ? h('button', { class: 'pcab__instalar', onclick: instalarApp, title: 'Instalar Control de Gestión como app' }, icono('bajar'), 'Instalar app') : null,
           h('span', { class: 'avatar' }, iniciales(yo.nombre)), h('span', { class: 'pcab__nombre' }, yo.nombre), h('span', { class: 'pcab__nivel' }, yo.rolNombre),
@@ -196,7 +196,7 @@
           h('p', { class: 'hero__s' }, 'Elige por dónde empezar.')),
         tiene('buscar') ? buscadorGeneral() : null,
         aviso, bloques),
-      h('footer', { class: 'pie' }, (ini.config.encabezados || []).slice(1, 2).join('') || 'Control de Gestión')));
+      h('footer', { class: 'pie' }, encabezadoInst().slice(1, 2).join('') || 'Control de Gestión')));
     function pintar(ind) {
       vaciar(aviso);
       if (esAdmin() && E.ini.mantenimiento && E.ini.mantenimiento.activo) {
