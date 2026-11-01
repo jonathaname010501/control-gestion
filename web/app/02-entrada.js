@@ -62,6 +62,10 @@
   function lienzoEntrada(contenido) {
     var enc = encabezadoInst();
     vaciar(app).appendChild(h('main', { class: 'login' },
+      // Los cuatro pétalos del emblema, de fondo y centrados (diseño de Atlas Territorial)
+      h('div', { class: 'petalos', 'aria-hidden': 'true' },
+        h('span', { class: 'petalo petalo--1' }), h('span', { class: 'petalo petalo--2' }),
+        h('span', { class: 'petalo petalo--3' }), h('span', { class: 'petalo petalo--4' })),
       h('div', { class: 'login__card' }, contenido),
       h('footer', { class: 'login__pie' },
         enc[0] ? h('span', { class: 'login__pie-1' }, enc[0]) : null,
@@ -69,8 +73,8 @@
   }
 
   function encabezadoTarjeta(titulo, sub) {
-    return [h('p', { class: 'login__eyebrow' }, 'SAPCI · Ciudad de México'),
-      h('img', { class: 'login__logo', src: LOGO, alt: 'Territorios de Paz e Igualdad', width: 96, height: 96 }),
+    return [h('img', { class: 'login__logo', src: LOGO, alt: 'Territorios de Paz e Igualdad', width: 80, height: 80 }),
+      h('p', { class: 'login__app' }, 'Control de Gestión'),
       h('h1', { class: 'login__titulo' }, titulo), h('p', { class: 'login__sub' }, sub)];
   }
 
@@ -172,7 +176,7 @@
       clave.el,
       h('label', { class: 'login__recordar' }, recordar, 'Recordar mi usuario en este equipo'),
       msg, boton);
-    lienzoEntrada([].concat(encabezadoTarjeta('Control de Gestión', recordado ? 'Hola de nuevo. Escribe tu contraseña para continuar.' : 'Inicia sesión para continuar.'),
+    lienzoEntrada([].concat(encabezadoTarjeta(recordado ? 'Hola de nuevo' : 'Inicia sesión', recordado ? 'Escribe tu contraseña para continuar.' : 'Escribe tu usuario y tu contraseña.'),
       [cajaMant, sinRed, form, h('p', { class: 'login__ayuda' }, '¿Olvidaste tu contraseña? Pide a un administrador que te dé una nueva.')]));
     // En celular no se abre el teclado de golpe: tapa la pantalla.
     if (!esCelular()) (recordado ? clave.input : usuario).focus();

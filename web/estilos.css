@@ -99,63 +99,123 @@ textarea.entrada { resize: vertical; min-height: 64px; line-height: 1.4; }
 .casilla { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; min-height: 38px; }
 .casilla input { width: 18px; height: 18px; accent-color: var(--morado); }
 
-/* ── Entrada (login), de la misma familia que Gabinetes ────────── */
-.login { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
-  background: radial-gradient(120% 70% at 50% -10%, rgba(143, 72, 137, .38), transparent 60%),
-    radial-gradient(80% 50% at 100% 100%, rgba(143, 72, 137, .12), transparent 55%), #fffdf0; }
-.login__card { width: 100%; max-width: 420px; background: #fff; border-radius: 16px; border-top: 5px solid var(--morado);
-  box-shadow: 0 18px 48px rgba(143, 72, 137, .22), 0 3px 10px rgba(0, 0, 0, .05); padding: 32px 26px 26px; text-align: center; }
-.login__eyebrow { margin: 0 0 18px; font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--morado); }
-.login__logo { width: 96px; height: 96px; margin: 0 auto 16px; display: block; }
-.login__titulo { margin: 0 0 6px; font-size: 30px; line-height: 1.2; color: var(--morado); }
-.login__sub { margin: 0 0 22px; color: var(--texto-2); font-size: 15px; }
-.login__form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
-.lcampo { display: flex; flex-direction: column; gap: 6px; }
-.lcampo__label { font-size: 13.5px; font-weight: 600; color: var(--texto); }
+/* ── Entrada (login): el mismo diseño de Atlas Territorial ───────────
+   Pétalos dorados sobre marfil y tarjeta blanca centrada; mismos valores
+   que la pantalla de Atlas. Los pétalos repiten la forma del emblema
+   (cuatro hojas con dos esquinas redondeadas opuestas). Las clases y las
+   pantallas (dos pasos, mantenimiento, cambio de contraseña) siguen igual:
+   solo cambia cómo se ven. */
+.login { --l-morado: var(--color-morado); --l-morado-hover: #7b3b76; --l-guinda: var(--color-guinda); --l-dorado: var(--color-dorado);
+  --l-marfil: var(--color-marfil); --l-texto: #3e4042; --l-texto-2: var(--color-gris);
+  --l-borde: #9a939d; /* 3:1 sobre blanco: el contorno del campo se distingue */
+  --l-rojo: #b42318; --l-anillo: 0 0 0 3px rgba(143, 72, 137, .28);
+  position: relative; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem;
+  padding: max(2rem, env(safe-area-inset-top)) 1rem max(2rem, env(safe-area-inset-bottom));
+  overflow: hidden; isolation: isolate; background: var(--l-marfil); color: var(--l-texto-2); color-scheme: light; }
+
+/* Pétalos de fondo (centrados): la tarjeta queda en el cruce, como el colibrí en el logo */
+.petalos { position: absolute; z-index: 0; left: 50%; top: 50%; width: min(78rem, 165vh, 190vw); aspect-ratio: 1; translate: -50% -50%;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3.6%; pointer-events: none; }
+.petalo { display: block; background: var(--l-dorado); animation: petalo-llega 1s cubic-bezier(.2, .7, .2, 1) both; }
+.petalo--1 { border-radius: 0 50% 0 50%; opacity: .16; --desde: -4% -4%; }
+.petalo--2 { border-radius: 50% 0 50% 0; opacity: .1; --desde: 4% -4%; animation-delay: .08s; }
+.petalo--3 { border-radius: 50% 0 50% 0; opacity: .1; --desde: -4% 4%; animation-delay: .16s; }
+.petalo--4 { border-radius: 0 50% 0 50%; opacity: .18; --desde: 4% 4%; animation-delay: .24s; }
+@keyframes petalo-llega { from { translate: var(--desde); scale: .94; opacity: 0; } }
+
+/* Tarjeta y encabezado */
+.login__card { position: relative; z-index: 1; width: 100%; max-width: 26rem; background: #fff; border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgba(85, 60, 40, .06), 0 18px 44px -12px rgba(110, 80, 50, .24); padding: 2.25rem 2.25rem 1.75rem; text-align: center; }
+.login__logo { display: block; width: 5rem; height: auto; margin: 0 auto 1rem; }
+.login__app { margin: 0 0 .375rem; font-family: var(--titulo); font-weight: 700; font-size: 1.125rem; letter-spacing: .01em; color: var(--l-guinda); }
+.login__titulo { margin: 0; font-family: var(--titulo); font-weight: 700; font-size: 1.875rem; line-height: 1.15; letter-spacing: -.01em; color: var(--l-texto); text-wrap: balance; }
+.login__sub { margin: .5rem auto 1.75rem; max-width: 36ch; font-size: 1rem; line-height: 1.5; color: var(--l-texto-2); text-wrap: balance; }
+
+/* Formulario y campos */
+.login__form { display: flex; flex-direction: column; gap: 1.125rem; text-align: left; }
+/* El contenedor de avisos (role="alert") existe vacío para que el lector de pantalla anuncie los errores;
+   sin esto sumaría una separación de más entre «Recordar» y el botón. */
+.login__form > div:empty { margin: -.5625rem 0; }
+.lcampo { display: flex; flex-direction: column; gap: .375rem; }
+.lcampo__label { font-size: .875rem; font-weight: 500; color: var(--l-texto); }
 .lcampo__caja { position: relative; display: block; }
-.lcampo__input { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #d3b6d0; border-radius: 10px; background: #fff;
+.lcampo__input { width: 100%; min-height: 3rem; padding: .7rem .875rem; border: 1px solid var(--l-borde); border-radius: .625rem; background: #fff;
+  font-family: inherit; color: var(--l-texto);
   font-size: 16px; /* 16px exactos: con menos, el iPhone hace zoom al escribir */ transition: border-color .15s, box-shadow .15s; }
-.lcampo__input--ojo { padding-right: 52px; }
-.lcampo__input::placeholder { color: #a9a2aa; }
-.lcampo__input:focus { outline: none; border-color: var(--morado); box-shadow: 0 0 0 3px rgba(143, 72, 137, .22); }
-.lcampo__input--mal { border-color: var(--rojo); }
-.lcampo__ojo { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center;
-  background: transparent; border: 0; border-radius: 8px; color: var(--texto-2); cursor: pointer; }
-.lcampo__ojo svg { width: 20px; height: 20px; }
-.lcampo__ojo:hover { color: var(--morado); }
-.lcampo__mayus, .lcampo__error { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
-.lcampo__mayus { color: var(--amarillo-texto); }
-.lcampo__mayus svg { width: 14px; height: 14px; }
-.lcampo__error { color: #a5063a; }
-.login__recordar { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--texto-2); cursor: pointer; user-select: none; min-height: 32px; }
-.login__recordar input { width: 18px; height: 18px; accent-color: var(--morado); }
-.login__error, .login__info { margin: 0; padding: 11px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.4; }
-.login__error { background: #fdecf1; border: 1px solid var(--rojo-claro); color: #a5063a; }
+.lcampo__input--ojo { padding-right: 3.25rem; }
+.lcampo__input::placeholder { color: #8c8890; }
+.lcampo__input:hover:not(:disabled):not(:focus) { border-color: #736c77; }
+.lcampo__input:focus { outline: none; border-color: var(--l-morado); box-shadow: var(--l-anillo); }
+.lcampo__input--mal, .lcampo__input--mal:hover:not(:disabled):not(:focus) { border-color: var(--l-rojo); }
+.lcampo__input--mal:focus { border-color: var(--l-rojo); box-shadow: 0 0 0 3px rgba(180, 35, 24, .18); }
+/* El autollenado del navegador pinta el campo de azul: lo dejamos blanco. */
+.lcampo__input:-webkit-autofill, .lcampo__input:-webkit-autofill:hover, .lcampo__input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--l-texto); -webkit-box-shadow: 0 0 0 1000px #fff inset; caret-color: var(--l-texto); }
+.lcampo__ojo { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: .5rem; color: #6b6e70; cursor: pointer; transition: color .15s, background .15s; }
+.lcampo__ojo svg { width: 1.25rem; height: 1.25rem; }
+.lcampo__ojo:hover { color: var(--l-morado); background: rgba(143, 72, 137, .08); }
+.lcampo__ojo:focus-visible { outline: none; box-shadow: var(--l-anillo); }
+.lcampo__mayus, .lcampo__error { display: flex; align-items: center; gap: .375rem; font-size: .8125rem; font-weight: 500; }
+.lcampo__mayus { color: #8a5a00; }
+.lcampo__mayus svg { width: 1rem; height: 1rem; flex: none; }
+.lcampo__error { color: var(--l-rojo); }
+.login__recordar { display: flex; align-items: center; gap: .625rem; font-size: .9375rem; color: var(--l-texto-2); cursor: pointer; user-select: none; min-height: 32px; }
+.login__recordar input { width: 1.125rem; height: 1.125rem; margin: 0; flex: none; accent-color: var(--l-morado); cursor: pointer; }
+.login__recordar input:focus-visible { outline: 2px solid var(--l-morado); outline-offset: 2px; }
+
+/* Avisos: error, información y sin internet */
+.login__error, .login__info { margin: 0; padding: .625rem .75rem; border-radius: .625rem; font-size: .875rem; line-height: 1.45; }
+.login__error { background: #fef3f2; border: 1px solid #fecdca; color: var(--l-rojo); }
 .login__info { background: var(--azul-claro); color: #174d84; }
-.login__aviso { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 0 0 16px; padding: 10px 12px; border-radius: 10px;
-  background: var(--amarillo-claro); color: var(--amarillo-texto); font-size: 13.5px; }
-.login__aviso svg { width: 18px; height: 18px; }
-.login__boton { min-height: 50px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 10px;
-  background: var(--morado); color: #fff; font-family: var(--titulo); font-size: 16.5px; font-weight: 700; cursor: pointer;
-  transition: background .15s, transform .08s; margin-top: 4px; }
-.login__boton:hover:not(:disabled) { background: var(--morado-osc); }
+.login__aviso { display: flex; align-items: flex-start; gap: .5rem; justify-content: flex-start; margin: 0 0 1.125rem; padding: .625rem .75rem; border-radius: .625rem;
+  background: #fdf6e7; border: 1px solid #ecd9ae; color: #6b4a12; font-size: .875rem; line-height: 1.45; text-align: left; }
+.login__aviso svg { width: 1.125rem; height: 1.125rem; flex: none; margin-top: .05rem; }
+
+/* Botón principal */
+.login__boton { min-height: 3rem; display: flex; align-items: center; justify-content: center; gap: .625rem; border: 0; border-radius: .625rem;
+  background: var(--l-morado); color: #fff; font-family: var(--cuerpo); font-size: 1rem; font-weight: 500; letter-spacing: .01em; cursor: pointer;
+  transition: background .15s, transform .05s; margin-top: .25rem; padding: .75rem 1rem; }
+.login__boton:hover:not(:disabled) { background: var(--l-morado-hover); }
 .login__boton:active:not(:disabled) { transform: translateY(1px); }
-.login__boton:disabled { background: #b9a6b7; cursor: wait; }
-.login__spinner { width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; border-radius: 999px; animation: girar .7s linear infinite; }
+.login__boton:focus-visible { outline: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--l-morado); }
+.login__boton:disabled { opacity: .8; cursor: wait; }
+.login__spinner { width: 1.05rem; height: 1.05rem; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; border-radius: 999px; animation: girar .7s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
-.login__ayuda { margin: 22px 0 0; font-size: 12.5px; color: var(--texto-3); }
-.login__pie { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-.login__pie::before { content: ""; width: 44px; height: 3px; margin-bottom: 10px; border-radius: 999px; background: var(--morado); }
-.login__pie-1 { font-size: 12.5px; font-weight: 600; color: var(--morado-osc); }
-.login__pie-2 { font-size: 12.5px; color: var(--morado); }
+.login__ayuda { margin: 1.5rem 0 0; padding-top: 1.125rem; border-top: 1px solid #eee9ef; font-size: .875rem; line-height: 1.5; text-align: center; text-wrap: balance; color: #6b6e70; }
+
+/* Pie institucional, centrado bajo la tarjeta */
+.login__pie { position: relative; z-index: 1; text-align: center; font-size: .8125rem; line-height: 1.5; color: var(--l-texto-2); }
+.login__pie::before { content: ""; display: block; width: 2.5rem; height: 3px; margin: 0 auto .75rem; border-radius: 2px; background: var(--l-dorado); }
+.login__pie-1, .login__pie-2 { display: block; }
+.login__pie-1 { font-weight: 500; color: var(--l-texto); }
 .modal-clave .login__boton { margin-top: 6px; }
-@media (max-width: 767px) {
-  .login { justify-content: flex-start; padding-top: 32px; }
-  .login__card { padding: 24px 20px 22px; box-shadow: 0 8px 24px rgba(143, 72, 137, .16); }
-  .login__titulo { font-size: 25px; }
+
+/* Pantallas bajas (laptops de 720–800 px de alto): se compacta para que la tarjeta y el pie quepan sin desplazarse. */
+@media (min-width: 481px) and (max-height: 820px) {
+  .login { gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; }
+  .login__card { padding: 1.75rem 2rem 1.25rem; }
+  .login__logo { width: 3.75rem; margin-bottom: .75rem; }
+  .login__app { margin-bottom: .25rem; }
+  .login__titulo { font-size: 1.75rem; }
+  .login__sub { margin-bottom: 1.25rem; }
+  .login__form { gap: .875rem; }
+  .login__ayuda { margin-top: 1.125rem; padding-top: .875rem; }
+  .login__pie::before { margin-bottom: .5rem; }
 }
-@media (prefers-reduced-motion: reduce) { .login__spinner { animation-duration: 2s; } .login__boton, .lcampo__input { transition: none; } }
+/* Celulares */
+@media (max-width: 480px) {
+  .login__card { padding: 2rem 1.5rem 1.5rem; }
+  .login__logo { width: 4.25rem; }
+  .login__titulo { font-size: 1.75rem; }
+}
+@media (max-width: 360px) {
+  .login__card { padding: 1.75rem 1.125rem 1.5rem; }
+  .login__titulo { font-size: 1.5rem; }
+}
+/* En celular la tarjeta se queda ARRIBA (como estaba): así los campos quedan por encima del teclado cuando se abre. */
+@media (max-width: 767px) { .login { justify-content: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .petalo { animation: none; } .login__spinner { animation-duration: 1.6s; } .login__boton, .lcampo__input, .lcampo__ojo { transition: none; } }
 .alerta { border-radius: 8px; padding: 10px 12px; font-size: 13px; }
 .alerta--error { background: var(--rojo-claro); color: #8a0a2e; }
 .alerta--info { background: var(--azul-claro); color: #174d84; }
