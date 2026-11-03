@@ -82,6 +82,8 @@ function entrar_(d) {
       throw generico;
     }
     if (o.activo !== 'SI') throw falla_('INACTIVO', 'Tu cuenta está desactivada. Habla con un administrador.');
+    // 1.10.0 · el rol «Consulta» se retiró: quien lo conserve en la hoja no entra hasta que se le asigne otro
+    if (!rolValido_(o)) throw falla_('SIN_ROL', 'Tu cuenta ya no tiene un rol asignado. Habla con un administrador para que te asigne uno.');
     var mant = mantenimiento_();
     if (mant.activo && o.rol !== 'admin') throw falla_('MANTENIMIENTO', mant.mensaje);
     if (nuevoHash) o.clave = nuevoHash;
@@ -123,6 +125,7 @@ function entrarCodigo_(d) {
   try {
     var t = tabla_(HOJAS.USR), f = filaUsuario_(t, p.u);
     if (!f || f.o.activo !== 'SI') { cache.remove('pre:' + ticket); throw falla_('INACTIVO', 'Tu cuenta está desactivada. Habla con un administrador.'); }
+    if (!rolValido_(f.o)) { cache.remove('pre:' + ticket); throw falla_('SIN_ROL', 'Tu cuenta ya no tiene un rol asignado. Habla con un administrador para que te asigne uno.'); }
     if (paso < 0) {
       p.n = (p.n || 0) + 1;
       if (p.n >= MAX_INTENTOS) cache.remove('pre:' + ticket); else cache.put('pre:' + ticket, JSON.stringify(p), TICKET_SEG);

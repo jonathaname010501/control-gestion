@@ -94,9 +94,11 @@
     })) : null;
 
     var cargando = function () { return h('p', { style: { margin: 0, color: 'var(--texto-3)' } }, 'Cargando…'); };
+    // Oficios salientes (1.10.0): un solo escaneo, que ya lleva el acuse. Si el registro todavía trae un acuse subido
+    // aparte (de antes), se sigue mostrando para abrirlo o quitarlo; ya no se ofrece subir uno nuevo.
     var archivos = previo ? cargando() : h('div', { style: { display: 'grid', gap: '8px' } },
-      bloqueArchivo(r, 'oficio', 'Documento escaneado', r.tiene_archivo, r.archivo_nombre),
-      bloqueArchivo(r, 'acuse', t === 'OFE' ? 'Oficio original / acuse' : 'Acuse', r.tiene_acuse_archivo, r.acuse_archivo_nombre));
+      bloqueArchivo(r, 'oficio', t === 'OFS' ? 'Oficio escaneado (con acuse)' : 'Documento escaneado', r.tiene_archivo, r.archivo_nombre),
+      t !== 'OFS' || r.tiene_acuse_archivo ? bloqueArchivo(r, 'acuse', t === 'OFE' ? 'Oficio original / acuse' : t === 'OFS' ? 'Acuse (archivo anterior)' : 'Acuse', r.tiene_acuse_archivo, r.acuse_archivo_nombre) : null);
 
     // Las notas se ven en su propia sección (en el historial saldrían repetidas)
     var movs = d.notas ? d.historial.filter(function (x) { return x.accion !== 'nota'; }) : d.historial;
@@ -410,7 +412,7 @@
     var cuerpo = h('div', { class: 'previa' }, h('p', { class: 'previa__cargando' }, 'Trayendo el archivo…'));
     var pie = h('div', { class: 'previa__pie' });
     var url = null;
-    var v = ventana({ titulo: (clase === 'acuse' ? (r.tipo === 'OFE' ? 'Oficio original / acuse' : 'Acuse') : 'Documento') + ' · ' + etiquetaNum(r), ancho: 900, sinFoco: true,
+    var v = ventana({ titulo: (clase === 'acuse' ? (r.tipo === 'OFE' ? 'Oficio original / acuse' : 'Acuse') : (r.tipo === 'OFS' ? 'Oficio escaneado' : 'Documento')) + ' · ' + etiquetaNum(r), ancho: 900, sinFoco: true,
       cuerpo: cuerpo, pie: pie, alCerrar: function () { if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 1000); } });
     llamar('descargarArchivo', { id: r.id, clase: clase }).then(function (a) {
       var bytes = b64aBytes(a.base64);

@@ -154,7 +154,7 @@ function avisosDiarios(e) {
   var activo = function (r) { return r.estatus === 'Pendiente' || r.estatus === 'En trámite'; };
   var avisos = [];
   tabla_(HOJAS.USR).filas.map(function (f) { return f.o; })
-    .filter(function (u) { return u.activo === 'SI' && u.correo; })
+    .filter(function (u) { return u.activo === 'SI' && rolValido_(u) && u.correo; })
     .forEach(function (u) {
       var tipos = tiposDeUsuario_(u);
       var mios = regs.filter(function (r) { return r.turnado_usuario === u.usuario && tipos.indexOf(r.tipo) >= 0 && activo(r) && r.fecha_limite; });

@@ -42,13 +42,13 @@ function vigilarBitacora(e) {
 test("bitácora: TODO se escribe con el candado (entrar, salir, descargar, exportar, respaldo, informes, cambiar contraseña)", () => {
   const e = preparar({ conBase: false });
   const sin = vigilarBitacora(e);
-  const t = alta(e, "beto", "captura", "*", { informes: true });
+  const t = alta(e, "beto", "captura", "*");
   const r = e.api(t, "guardar", nuevoOficio()).datos.registro;
   e.api(t, "subirArchivo", { id: r.id, clase: "oficio", nombre: "a.pdf", mime: "application/pdf", base64: PDF });
   e.api(t, "descargarArchivo", { id: r.id, clase: "oficio" });
   e.api(e.admin, "exportar", { tipo: "TODOS" });
   e.api(e.admin, "respaldo");
-  e.api(t, "informes", { desde: "2026-01-01", hasta: "2026-12-31", excel: true });
+  e.api(e.admin, "informes", { desde: "2026-01-01", hasta: "2026-12-31", excel: true });
   e.api(null, "entrar", { usuario: "beto", clave: "mala" });
   const t2 = entrar(e, "beto");
   e.api(t2, "cambiarClave", { actual: "Ahuehuete2026x", nueva: "Colibri-Azul-77" });
@@ -88,7 +88,7 @@ test("varios destinatarios: la pestaña Config se lee una vez por petición (ant
   const e = preparar({ conBase: false });
   const dest = [];
   for (let i = 0; i < 60; i++) dest.push({ dirigido_id: "", dirigido_a: "Persona número " + i });
-  const base = { tipo: "OFS", asunto: "Prueba", fecha: "2026-10-21", firma: "Lic. X", elaboro: "VJ", acuse: "NO", destinatarios: dest };
+  const base = { tipo: "OFS", asunto: "Prueba", fecha: "2026-10-21", firma: "Lic. X", elaboro: "VJ", carpeta: "C-01", acuse: "NO", destinatarios: dest };
   const cfg = e.hoja("Config");
   cfg.lecturas = 0;
   const p = e.api(e.admin, "guardarVarios", { ...base, previa: true });
@@ -460,8 +460,6 @@ test("lote: estatus, acuse, turno y fecha límite de muchos a la vez; omite lo q
   assert.equal(e.api(cap, "guardarLote", { ids, cambios: { estatus: "Cancelado" } }).codigo, "DATOS");
   assert.equal(e.api(cap, "guardarLote", { ids, cambios: {} }).codigo, "DATOS");
   assert.equal(e.api(cap, "guardarLote", { ids: Array.from({ length: 501 }, (_, i) => "x" + i), cambios: { acuse: "SI" } }).codigo, "DATOS");
-  const con = alta(e, "carla", "consulta", "*");
-  assert.equal(e.api(con, "guardarLote", { ids, cambios: { acuse: "SI" } }).codigo, "PERMISO");
   assert.equal(e.candado.tomado, false);
 });
 
@@ -553,7 +551,7 @@ test("consulta inusual: al abrir 300 registros en un día queda alerta en la Bit
   const e = preparar({ conBase: false });
   e.api(e.admin, "guardarUsuario", { usuario: "admin", nombre: "Administrador", rol: "admin", correo: "admin@ejemplo.mx" });
   e.api(e.admin, "guardarConfig", { avisos_correo: "SI" });
-  const cap = alta(e, "beto", "consulta", "*");
+  const cap = alta(e, "beto", "captura", "*");
   const r = e.api(e.admin, "guardar", nuevoOficio()).datos.registro;
   e.estado.correos = [];
   for (let i = 0; i < 300; i++) e.api(cap, "obtener", { id: r.id });
@@ -625,8 +623,6 @@ test("borrador del oficio: llena la plantilla, regresa .docx, borra la copia; la
   const temporales = [...e.drive.archivos.values()].filter((a) => a.nombre.startsWith("Oficio SAPCI"));
   assert.ok(temporales.length && temporales.every((a) => a.papelera), "la copia temporal va a la papelera");
   assert.equal(e.api(e.admin, "generarOficio", { id: e.api(e.admin, "guardar", { tipo: "OFE", asunto: "x", fecha: "2026-01-01" }).datos.registro.id }).codigo, "DATOS");
-  const con = alta(e, "carla", "consulta", "*");
-  assert.equal(e.api(con, "generarOficio", { id: r.id }).codigo, "PERMISO");
   assert.ok(bitacora(e).some((b) => b.accion === "oficio"));
 });
 

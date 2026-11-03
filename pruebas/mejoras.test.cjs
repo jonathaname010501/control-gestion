@@ -25,7 +25,7 @@ function confirmado(e, token, datos, api = e.api.bind(e)) {
 }
 
 const varios = (destinatarios, extra = {}) => ({ tipo: "OFS", asunto: "Invitación a la reunión de seguimiento", fecha: `${ANIO}-10-21`,
-  firma_id: "", firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", destinatarios, ...extra });
+  firma_id: "", firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", carpeta: "C-01", destinatarios, ...extra });
 
 /* ═══════════════════════ 1 · Varios destinatarios ═══════════════════════ */
 
@@ -131,10 +131,8 @@ test("varios destinatarios: con el candado ocupado no escribe nada; mientras gua
 test("varios destinatarios: permisos y validación en el servidor (nada se guarda si algo falla)", () => {
   const e = preparar();
   const ds = personas(e, 3);
-  const con = alta(e, "carla", "consulta", ["OFS"]);
   const capOfe = alta(e, "dora", "captura", ["OFE"]);
   const filas = filasDe(e, "Registros");
-  assert.equal(e.api(con, "guardarVarios", varios(ds)).codigo, "PERMISO", "consulta no captura");
   assert.equal(e.api(capOfe, "guardarVarios", varios(ds)).codigo, "PERMISO", "sin la libreta de oficios salientes");
   assert.equal(e.api(capOfe, "guardarVarios", { ...varios(ds), previa: true }).codigo, "PERMISO", "ni la vista previa");
   assert.equal(e.api(e.admin, "guardarVarios", { ...varios(ds), tipo: "OFE" }).codigo, "DATOS", "solo libretas con número automático");
@@ -219,7 +217,7 @@ test("si se publica el código sin correr instalar(), la app agrega sola la colu
 test("turnar: solo a usuarios activos con acceso a la libreta; queda en la bitácora", () => {
   const e = preparar();
   const ana = alta(e, "ana", "captura", ["OFE"]);
-  alta(e, "beto", "consulta", ["OFS"]);
+  alta(e, "beto", "captura", ["OFS"]);
   alta(e, "eva", "captura", ["OFE"]);
   e.api(e.admin, "guardarUsuario", { usuario: "eva", nombre: "Persona eva", rol: "captura", tipos: ["OFE"], activo: "NO" });
   const ent = e.api(e.admin, "guardar", { ...nuevoOficio(), tipo: "OFE", numero: "X/1", estatus: "Pendiente", fecha_limite: "2026-01-02" }).datos.registro;
@@ -311,31 +309,30 @@ test("nadie ve asuntos de libretas que no tiene, aunque se los hayan turnado", (
   assert.equal(e.api(e.admin, "guardar", nuevoOficio({ turnado_usuario: "ana" })).codigo, "DATOS");
 });
 
-test("usuarios para turnar: solo activos con acceso; consulta no puede pedir la lista", () => {
+test("usuarios para turnar: solo activos, con rol y con acceso a la libreta", () => {
   const e = preparar();
   const cap = alta(e, "ana", "captura", ["OFE"]);
-  alta(e, "beto", "consulta", ["OFE"]);
+  alta(e, "beto", "captura", ["OFE"]);
   alta(e, "carla", "captura", ["OFS"]);
-  const con = alta(e, "dora", "consulta", ["OFE"]);
-  e.api(e.admin, "guardarUsuario", { usuario: "dora", nombre: "Persona dora", rol: "consulta", tipos: ["OFE"], activo: "NO" });
+  const des = alta(e, "dora", "captura", ["OFE"]);
+  e.api(e.admin, "guardarUsuario", { usuario: "dora", nombre: "Persona dora", rol: "captura", tipos: ["OFE"], activo: "NO" });
   const lista = e.api(cap, "usuariosTurno", { tipo: "OFE" }).datos.map((u) => u.usuario).sort();
   assert.deepEqual(lista, ["admin", "ana", "beto"]);
   assert.ok(e.api(cap, "usuariosTurno", { tipo: "OFE" }).datos.every((u) => Object.keys(u).sort().join() === "nombre,usuario"), "solo usuario y nombre");
   assert.equal(e.api(cap, "usuariosTurno", { tipo: "OFS" }).codigo, "PERMISO");
-  assert.equal(e.api(con, "usuariosTurno", { tipo: "OFE" }).codigo, "SESION", "desactivada");
-  const con2 = alta(e, "eli", "consulta", ["OFE"]);
-  assert.equal(e.api(con2, "usuariosTurno", { tipo: "OFE" }).codigo, "PERMISO");
+  assert.equal(e.api(des, "usuariosTurno", { tipo: "OFE" }).codigo, "SESION", "desactivada");
 });
 
 test("inicio dice qué acciones existen (para que la página no use lo que el servidor no tiene)", () => {
   const e = preparar();
-  const con = alta(e, "carla", "consulta", ["OFS"]);
+  const cap = alta(e, "carla", "captura", ["OFS"]);
   const a = e.api(e.admin, "inicio").datos;
   assert.ok(a.acciones.includes("guardarVarios") && a.acciones.includes("misAsuntos") && a.acciones.includes("usuarios"));
+  assert.ok(a.acciones.includes("informes") && a.acciones.includes("directorio"), "el administrador sí tiene Informes y Directorio");
   assert.equal(a.maxVarios, 100);
-  const c = e.api(con, "inicio").datos;
-  assert.ok(c.acciones.includes("misAsuntos"));
-  assert.ok(!c.acciones.includes("guardarVarios") && !c.acciones.includes("usuarios"));
+  const c = e.api(cap, "inicio").datos;
+  assert.ok(c.acciones.includes("misAsuntos") && c.acciones.includes("guardarVarios"));
+  for (const x of ["usuarios", "bitacora", "guardarConfig", "exportar", "informes", "directorio"]) assert.ok(!c.acciones.includes(x), "Captura no tiene «" + x + "»");
 });
 
 testBase("con la base real: varios destinatarios sigue después del 415 y del 370 BIS", () => {
@@ -371,7 +368,7 @@ test("buscador general: sin acentos ni mayúsculas, en número, asunto, personas
 
 test("buscador general: solo MIS libretas y máximo 50 resultados, agrupados", () => {
   const e = preparar();
-  const ofe = alta(e, "ana", "consulta", ["OFE"]);
+  const ofe = alta(e, "ana", "captura", ["OFE"]);
   for (let i = 0; i < 30; i++) e.api(e.admin, "guardar", nuevoOficio({ asunto: "Zafiro saliente " + i }));
   for (let i = 0; i < 30; i++) e.api(e.admin, "guardar", { ...nuevoOficio(), tipo: "OFE", numero: "Z/" + i, asunto: "Zafiro entrante " + i });
   const todo = e.api(e.admin, "buscar", { q: "zafiro" }).datos;
@@ -380,7 +377,7 @@ test("buscador general: solo MIS libretas y máximo 50 resultados, agrupados", (
   assert.equal(todo.grupos.reduce((s, g) => s + g.registros.length, 0), 50);
   assert.deepEqual(todo.grupos.map((g) => [g.tipo, g.total]), [["OFS", 30], ["OFE", 30]]);
   const suyo = e.api(ofe, "buscar", { q: "zafiro" }).datos;
-  assert.equal(suyo.total, 30, "consulta con solo entrantes no ve los salientes");
+  assert.equal(suyo.total, 30, "quien solo tiene entrantes no ve los salientes");
   assert.deepEqual(suyo.grupos.map((g) => g.tipo), ["OFE"]);
   assert.ok(suyo.grupos[0].registros.every((x) => x.tipo === "OFE" && x.archivo_id === undefined));
 });
@@ -507,31 +504,29 @@ test("fecha de atención: se pone al pasar a Atendido o Concluido y se borra si 
   assert.equal(e.api(e.admin, "obtener", { id: ent2.id }).datos.registro.fecha_atencion, "2026-03-11");
 });
 
-test("Informes: solo admin y quien tenga el permiso; nunca de libretas ajenas", () => {
+test("Informes y Directorio: solo administradores (a Captura ya no se le pueden dar)", () => {
   const e = preparar({ conBase: false });
   const cap = alta(e, "ana", "captura", ["OFE"]);
   const rango = { desde: "2026-01-01", hasta: "2026-12-31" };
   assert.equal(e.api(e.admin, "informes", rango).ok, true);
+  assert.equal(e.api(e.admin, "directorio").ok, true);
   assert.equal(e.api(cap, "informes", rango).codigo, "PERMISO");
+  assert.equal(e.api(cap, "directorio").codigo, "PERMISO");
   assert.ok(!e.api(cap, "inicio").datos.acciones.includes("informes"));
-  assert.ok(e.api(e.admin, "inicio").datos.acciones.includes("informes"));
-  // el admin le da permiso: la sesión se cierra (permisos nuevos = entrar de nuevo)
-  e.api(e.admin, "guardarUsuario", { usuario: "ana", nombre: "Persona ana", rol: "captura", tipos: ["OFE"], informes: true });
-  assert.equal(e.api(cap, "informes", rango).codigo, "SESION");
-  const ana = entrar(e, "ana");
-  assert.ok(e.api(ana, "inicio").datos.acciones.includes("informes"));
-  const r = e.api(ana, "informes", rango).datos;
-  assert.deepEqual(r.tipos, ["OFE"], "sin elegir libretas: solo las suyas");
-  assert.equal(e.api(ana, "informes", { ...rango, tipos: ["OFE", "OFS"] }).codigo, "PERMISO", "no puede pedir libretas ajenas");
-  assert.equal(e.api(e.admin, "usuarios").datos.find((u) => u.usuario === "ana").informes, "SI");
-  // una página vieja que guarda el usuario sin el campo no le quita el permiso
-  e.api(e.admin, "guardarUsuario", { usuario: "ana", nombre: "Ana P.", rol: "captura", tipos: ["OFE"] });
-  assert.equal(e.api(e.admin, "usuarios").datos.find((u) => u.usuario === "ana").informes, "SI");
-  // quitarlo
-  e.api(e.admin, "guardarUsuario", { usuario: "ana", nombre: "Ana P.", rol: "captura", tipos: ["OFE"], informes: false });
+  assert.ok(!e.api(cap, "inicio").datos.acciones.includes("directorio"));
+  // la casilla «Puede ver Informes» ya no existe: mandarla no da el permiso (y no cierra la sesión de nadie)
+  assert.equal(e.api(e.admin, "guardarUsuario", { usuario: "ana", nombre: "Persona ana", rol: "captura", tipos: ["OFE"], informes: true }).ok, true);
+  assert.equal(e.api(cap, "informes", rango).codigo, "PERMISO");
+  // ni siquiera si la hoja de Usuarios todavía trae «SI» de antes (columna que ya no se usa)
+  const h = e.hoja("Usuarios"), col = h.datos[0].indexOf("informes");
+  h.datos.forEach((f, i) => { if (i > 0 && f && f[0] === "ana") f[col] = "SI"; });
+  assert.equal(e.api(cap, "informes", rango).codigo, "PERMISO");
   assert.equal(e.api(entrar(e, "ana"), "informes", rango).codigo, "PERMISO");
-  const bit = e.api(e.admin, "bitacora", { accion: "usuarios" }).datos.filas.map((x) => x.detalle).join("\n");
-  assert.match(bit, /captura\/OFE\/SI → captura\/OFE\/SI\/informes/);
+  assert.ok(e.api(e.admin, "usuarios").datos.every((u) => !("informes" in u)), "la lista de usuarios ya no habla de Informes");
+  // el formulario de captura sí tiene la lista de personas (viene en «inicio») y puede agregar una nueva
+  const p = e.api(cap, "guardarPersona", { nombre: "Lic. Persona Nueva Prueba", cargo: "Directora", confirmar: true });
+  assert.equal(p.ok, true, JSON.stringify(p));
+  assert.ok(e.api(cap, "inicio").datos.directorio.some((x) => x.id === p.datos.persona.id), "la nueva persona sale en el selector");
   // validación del periodo
   assert.equal(e.api(e.admin, "informes", { desde: "2026-12-31", hasta: "2026-01-01" }).codigo, "DATOS");
   assert.equal(e.api(e.admin, "informes", { desde: "2026-02-30", hasta: "2026-03-01" }).codigo, "DATOS");
@@ -588,9 +583,7 @@ test("Informes: por mes, remitentes y destinatarios, tiempo de respuesta y atend
   assert.deepEqual([d5.resultado, d5.fecha_atencion, d5.fuente], ["aTiempo", "2026-04-08", "bitácora"]);
   assert.equal(x.aTiempo.detalle.find((d) => d.numero === "E/6").resultado, "sinDato");
   assert.match(e.api(e.admin, "bitacora", { accion: "exportación" }).datos.filas[0].detalle, /Excel de Informes del 2026-01-01 al 2026-12-31/);
-  // Quien solo tiene entrantes no ve los oficios salientes (ni sus fechas) en el tiempo de respuesta
-  alta(e, "ana", "consulta", ["OFE"], { informes: true });
-  const ana = e.api(entrar(e, "ana"), "informes", { desde: "2026-01-01", hasta: "2026-12-31" }).datos;
-  assert.equal(ana.respuesta.casos, 0);
-  assert.equal(ana.destinatarios.total, 0);
+  // Quien captura no puede pedir Informes, ni siquiera de sus propias libretas
+  const ana = alta(e, "ana", "captura", ["OFE"]);
+  assert.equal(e.api(ana, "informes", { desde: "2026-01-01", hasta: "2026-12-31" }).codigo, "PERMISO");
 });

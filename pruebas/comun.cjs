@@ -46,7 +46,8 @@ function entrar(e, usuario, clave = "Ahuehuete2026x") {
 
 const nuevoOficio = (extra = {}) => ({ tipo: "OFS", asunto: "Solicitud de apoyo logístico", fecha: "2026-10-21",
   dirigido_id: "", dirigido_a: "Mtro. Daniel Esteban Ramírez Garcén\nDirector General", firma_id: "",
-  firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", acuse: "NO", ...extra });
+  firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", carpeta: "C-01", acuse: "NO", ...extra });
+// 1.10.0 · Los oficios salientes piden dirigido, firma, elaboró y carpeta (además del asunto y la fecha); la plantilla ya los trae.
 
 const filasDe = (e, hoja) => e.hoja(hoja).getLastRow();
 

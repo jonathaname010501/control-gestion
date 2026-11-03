@@ -66,8 +66,9 @@
           h('thead', null, h('tr', null, ['Usuario', 'Nombre', 'Rol', 'Libretas', 'Estado', 'Último acceso', ''].map(function (x) { return h('th', null, x); }))),
           h('tbody', null, us.map(function (u) {
             return h('tr', { style: { cursor: 'default' } },
-              h('td', null, h('strong', null, u.usuario)), h('td', null, u.nombre), h('td', null, E.ini.roles[u.rol] || u.rol),
-              h('td', null, libretasTxt(u.tipos), u.informes === 'SI' && u.rol !== 'admin' ? h('span', { class: 'etq etq--inf' }, 'Informes') : null),
+              h('td', null, h('strong', null, u.usuario)), h('td', null, u.nombre),
+              h('td', null, u.sinRol ? h('span', { class: 'etq etq--rojo', title: 'Tenía un rol que ya no existe («Consulta»). No puede entrar hasta que le elijas uno.' }, 'Sin rol · elige uno') : (E.ini.roles[u.rol] || u.rol)),
+              h('td', null, libretasTxt(u.tipos)),
               h('td', null, u.activo === 'SI' ? h('span', { class: 'etq' }, 'Activo') : h('span', { class: 'etq etq--gris' }, 'Inactivo'),
                 u.bloqueado ? h('span', { class: 'etq etq--rojo' }, 'Bloqueado') : null, u.debe_cambiar === 'SI' ? h('span', { class: 'etq etq--gris' }, 'Contraseña temporal') : null,
                 u.dosPasos ? h('span', { class: 'etq etq--verde' }, 'Dos pasos') : null, u.correo ? h('span', { class: 'etq etq--gris', title: u.correo }, 'Con correo') : null),
@@ -96,27 +97,23 @@
       var nuevo = !u;
       var usuario = h('input', { class: 'entrada', value: u ? u.usuario : '', readOnly: !nuevo, maxlength: 30, autocapitalize: 'none', spellcheck: 'false', placeholder: 'p. ej. valentina.j' });
       var nombre = h('input', { class: 'entrada', value: u ? u.nombre : '', maxlength: 120 });
-      var rol = h('select', { class: 'entrada' }, Object.keys(E.ini.roles).map(function (k) { return h('option', { value: k, selected: u ? u.rol === k : k === 'captura' }, E.ini.roles[k]); }));
+      var rol = h('select', { class: 'entrada' }, (u && u.sinRol ? [h('option', { value: '', selected: true }, '— Elige un rol —')] : [])
+        .concat(Object.keys(E.ini.roles).map(function (k) { return h('option', { value: k, selected: u ? u.rol === k : k === 'captura' }, E.ini.roles[k]); })));
       var descRol = h('div', { class: 'campo__ayuda' });
       var actuales = u ? (u.tipos === '*' ? Object.keys(E.ini.todosTipos) : String(u.tipos).split(',')) : Object.keys(E.ini.todosTipos);
       var cajas = Object.keys(E.ini.todosTipos).map(function (t) { return { t: t, el: h('input', { type: 'checkbox', checked: actuales.indexOf(t) >= 0 }) }; });
       var bloqueLib = h('fieldset', { class: 'grupo' }, h('legend', null, 'Libretas que puede ver'),
         h('div', { class: 'rejilla' }, cajas.map(function (c) { return h('label', { class: 'casilla' }, c.el, E.ini.todosTipos[c.t].nombre); })));
       var activo = h('input', { type: 'checkbox', checked: !u || u.activo === 'SI' });
-      // Informes: solo si el servidor ya lo sabe manejar (si no, no se manda y se conserva)
-      // (a un administrador no se le marca: si lo bajan de rol, no se queda con Informes sin que alguien lo elija)
-      var informes = tiene('informes') ? h('input', { type: 'checkbox', checked: !!(u && u.rol !== 'admin' && u.informes === 'SI') }) : null;
-      var campoInformes = informes ? h('label', { class: 'casilla' }, informes, 'Puede ver Informes (gráficas y números de sus libretas)') : null;
       var desbloquear = u && u.bloqueado ? h('input', { type: 'checkbox', checked: true }) : null;
       var correo = tiene('miCuenta') ? h('input', { class: 'entrada', type: 'email', value: u ? u.correo || '' : '', maxlength: 120, placeholder: 'nombre@dominio.mx' }) : null;
       var quitar2fa = u && u.dosPasos ? h('input', { type: 'checkbox' }) : null;
       var msg = h('div');
       function pintarRol() {
-        descRol.textContent = { admin: 'Todo: registros de todas las libretas, cancelar, usuarios, bitácora, exportación y configuración.',
-          captura: 'Registra y edita en sus libretas, sube archivos y agrega personas al directorio.',
-          consulta: 'Solo ve, busca y abre archivos de sus libretas.' }[rol.value] + (rol.value === 'admin' && informes ? ' Los administradores siempre ven Informes.' : '');
+        descRol.textContent = { admin: 'Todo: registros de todas las libretas, cancelar, informes, directorio, usuarios, bitácora, exportación y configuración.',
+          captura: 'Registra y edita en sus libretas, sube archivos y agrega personas desde el formulario. No ve Informes, Directorio, Usuarios, Bitácora, Exportación ni Configuración.',
+          '': 'Esta persona tenía el rol «Consulta», que ya no existe. Elige uno: mientras no lo hagas, no puede entrar.' }[rol.value] || '';
         bloqueLib.classList.toggle('oculto', rol.value === 'admin');
-        if (campoInformes) campoInformes.classList.toggle('oculto', rol.value === 'admin');
       }
       rol.addEventListener('change', pintarRol); pintarRol();
       var v = ventana({ titulo: nuevo ? 'Nuevo usuario' : 'Editar ' + u.usuario, ancho: 620, cuidar: true, cuerpo: [msg,
@@ -124,7 +121,6 @@
           h('div', { class: 'campo ancho' }, campo('Rol', rol), descRol),
           correo ? h('div', { class: 'ancho' }, campo('Correo para avisos (opcional)', correo, { ayuda: 'Le llegan los avisos de turno y el resumen diario, si están prendidos en Configuración.' })) : null),
         bloqueLib,
-        campoInformes,
         nuevo ? null : h('label', { class: 'casilla' }, activo, 'Cuenta activa'),
         desbloquear ? h('label', { class: 'casilla' }, desbloquear, 'Desbloquear (tiene intentos fallidos)') : null,
         quitar2fa ? h('label', { class: 'casilla' }, quitar2fa, 'Quitar su verificación en dos pasos (perdió o cambió su teléfono)') : null,
@@ -135,7 +131,7 @@
             if (Array.isArray(tipos) && tipos.length === cajas.length) tipos = '*';
             llamar('guardarUsuario', { nuevo: nuevo, usuario: usuario.value, nombre: nombre.value, rol: rol.value, tipos: tipos,
               activo: activo.checked ? 'SI' : 'NO', desbloquear: desbloquear ? desbloquear.checked : false,
-              informes: informes ? informes.checked : undefined, correo: correo ? correo.value.trim() : undefined,
+              correo: correo ? correo.value.trim() : undefined,
               quitar2fa: quitar2fa ? quitar2fa.checked : false }).then(function (r) {
               v.cerrar(); cargar(); cacheTurno = {};
               if (r.temporal) credenciales(r.usuario, r.temporal, 'Usuario creado'); else aviso('Usuario actualizado.', 'ok');
@@ -257,7 +253,7 @@
             h('button', { type: 'button', class: 'btn btn--chico', onclick: function () { agregarFestivos(anio); } }, 'Agregar los de ley de ' + anio),
             h('button', { type: 'button', class: 'btn btn--chico', onclick: function () { agregarFestivos(anio + 1); } }, 'De ' + (anio + 1))),
           h('div', { class: 'campo__ayuda' }, 'No cuentan para la fecha límite ni para el tiempo de respuesta. Los botones agregan los festivos de ley y jueves y viernes santo, con su nombre para que los revises (al guardar quedan solo las fechas). Revisa el acuerdo de días inhábiles de la Gaceta Oficial de la CDMX y agrega o quita lo que haga falta, una fecha por renglón.')) : null,
-        nuevo ? campo('«Sin acuse» cuenta desde', acuseDesde, { ayuda: 'Para que el aviso de «sin acuse» no incluya lo de antes del sistema (lo migrado del Excel). Vacío = todos.' }) : null,
+        nuevo ? campo('«Sin acuse» y «Sin archivo» cuentan desde', acuseDesde, { ayuda: 'Para que los avisos de «sin acuse» y «sin archivo» no incluyan lo de antes del sistema (lo migrado del Excel). Vacío = todos.' }) : null,
         h('div', null, h('button', { class: 'btn btn--prim', onclick: function () { guardar(this); } }, 'Guardar'))),
       nuevo ? h('div', { class: 'tarjeta config', style: { marginTop: '16px' } },
         h('h2', { class: 'config__t' }, icono('archivo'), 'Borrador del oficio en Word'),

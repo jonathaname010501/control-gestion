@@ -32,7 +32,7 @@
 
 // Versión del servidor. La página la compara con su SERVIDOR_MINIMO (web/app/01-nucleo.js):
 // súbela cuando la página vaya a necesitar algo nuevo de aquí. Lo demás no depende de ella.
-var VERSION = '1.9.0';
+var VERSION = '1.10.0';
 var ZONA = 'America/Mexico_City';
 var SESION_SEG = 3 * 60 * 60;      // 3 h sin actividad cierran la sesión
 var MAX_ARCHIVO_MB = 10;
@@ -93,9 +93,14 @@ var TIPOS = {
       ['carpeta', 'No. de carpeta'], ['observaciones', 'Observaciones']] }
 };
 var ORDEN_TIPOS = ['OFS', 'OFE', 'OFC', 'CIR', 'TAR', 'VOL'];
+// 1.10.0 · Datos que no se pueden dejar vacíos al capturar, por libreta (además del asunto y la fecha,
+// que se piden siempre en todas). La casilla de acuse, los archivos y el seguimiento no cuentan.
+var OBLIGATORIOS = { OFS: ['dirigido', 'firma', 'elaboro', 'carpeta'] };
 var ESTATUS = ['Pendiente', 'En trámite', 'Atendido', 'Concluido', 'Cancelado'];
 var CERRADOS = ['Atendido', 'Concluido'];   // estatus que cuentan como «atendido» en Informes
-var ROLES = { admin: 'Administrador', captura: 'Captura', consulta: 'Consulta' };
+// 1.10.0 · se retiró el rol «Consulta». Quien todavía lo tenga en la hoja no puede entrar hasta que
+// un administrador le asigne uno de estos (ver rolValido_ y entrar_ en Seguridad.gs).
+var ROLES = { admin: 'Administrador', captura: 'Captura' };
 
 // Memoria de UNA petición: la hoja se abre una sola vez por llamada. Se vacía
 // al entrar a api(), doGet() y las funciones del editor (nuevaPeticion_), así
@@ -218,7 +223,9 @@ var ACCIONES_ = {
   subirArchivo: { fn: conDetalle_(subirArchivo_), rol: 'captura' },
   descargarArchivo: { fn: descargarArchivo_ },
   quitarArchivo: { fn: conDetalle_(quitarArchivo_), rol: 'captura' },
-  directorio: { fn: listarDirectorio_ },
+  // 1.10.0 · la pantalla del Directorio es solo para administradores. El formulario de captura
+  // NO la necesita: usa la lista activa que ya viene en «inicio» (directorioActivo_).
+  directorio: { fn: listarDirectorio_, rol: 'admin' },
   guardarPersona: { fn: guardarPersona_, rol: 'captura' },
   unirPersonas: { fn: unirPersonas_, rol: 'admin' },
   usuarios: { fn: listarUsuarios_, rol: 'admin' },
@@ -235,8 +242,8 @@ var ACCIONES_ = {
   buscar: { fn: buscar_ },
   mantenimiento: { fn: guardarMantenimiento_, rol: 'admin' },
   respaldo: { fn: respaldo_, rol: 'admin' },
-  // 1.5.0 · Informes: administradores y quien tenga «informes = SI» en Usuarios
-  informes: { fn: informes_, permiso: function (yo) { return yo.rol === 'admin' || yo.informes === true; } },
+  // 1.5.0 · Informes. Desde 1.10.0 solo administradores (la columna «informes» de Usuarios ya no se usa)
+  informes: { fn: informes_, rol: 'admin' },
   // 1.6.0 · Velocidad: las listas del año de todas las libretas en una vuelta
   listarTodo: { fn: listarTodo_ },
   // 1.7.0 · Las de otros archivos van envueltas (ver regla 5 arriba)
@@ -248,7 +255,7 @@ var ACCIONES_ = {
   generarOficio: { fn: function (yo, d) { return generarOficio_(yo, d); }, rol: 'captura' },
   // 1.8.0
   apartar: { fn: apartar_, rol: 'captura' },
-  agregarNota: { fn: agregarNota_ },          // quien captura, o la persona a quien se turnó (se revisa adentro)
+  agregarNota: { fn: agregarNota_ },          // cualquier usuario con acceso a la libreta del registro
   deshacerLote: { fn: deshacerLote_, rol: 'captura' }
 };
 
@@ -328,7 +335,7 @@ function sesion_(token, sinRenovar) {
   if (!raw) throw falla_('SESION', 'Tu sesión terminó. Vuelve a entrar.');
   var s = JSON.parse(raw);
   var u = buscarUsuario_(s.u);
-  if (!u || u.activo !== 'SI' || u.sello !== s.s) {
+  if (!u || u.activo !== 'SI' || u.sello !== s.s || !rolValido_(u)) {
     cache.remove('ses:' + token);
     throw falla_('SESION', 'Tu sesión terminó. Vuelve a entrar.');
   }
@@ -343,7 +350,7 @@ function sesion_(token, sinRenovar) {
 function yoDe_(u) {
   return {
     usuario: u.usuario, nombre: u.nombre, rol: u.rol, debe_cambiar: u.debe_cambiar === 'SI',
-    tipos: tiposDeUsuario_(u), informes: u.rol === 'admin' || u.informes === 'SI',
+    tipos: tiposDeUsuario_(u),
     dosPasos: !!u.totp, correo: u.correo || ''
   };
 }
@@ -368,9 +375,12 @@ function buscarUsuario_(usuario) {
 }
 
 function tieneRol_(yo, minimo) {
-  var nivel = { consulta: 1, captura: 2, admin: 3 };
+  var nivel = { captura: 2, admin: 3 };
   return (nivel[yo.rol] || 0) >= nivel[minimo];
 }
+
+/** ¿Su rol sigue existiendo? Los que tenían «Consulta» (retirado en 1.10.0) ya no, hasta que se les asigne otro. */
+function rolValido_(u) { return !!u && Object.prototype.hasOwnProperty.call(ROLES, u.rol); }
 
 function puedeTipo_(yo, tipo) {
   if (!TIPOS[tipo]) throw falla_('DATOS', 'Tipo de documento desconocido.');
@@ -441,6 +451,15 @@ function cuentaSinAcuse_(r, corte) {
   return r.tipo === 'OFS' && r.acuse !== 'SI' && r.estatus !== 'Cancelado' && (!corte || String(r.fecha || '') >= corte);
 }
 
+/**
+ * 1.10.0 · ¿Este oficio saliente no tiene NINGÚN escaneo (ni el documento ni un acuse subido aparte)?
+ * No cuenta cancelados ni números apartados sin completar, y respeta la misma fecha de corte que «sin acuse».
+ */
+function cuentaSinArchivo_(r, corte) {
+  return r.tipo === 'OFS' && !r.archivo_id && !r.acuse_archivo_id && r.estatus !== 'Cancelado' && !porCompletar_(r) &&
+    (!corte || String(r.fecha || '') >= corte);
+}
+
 /** Un número apartado que aún no se completa: sin asunto y sin cancelar. */
 function porCompletar_(r) { return !String(r.asunto || '').trim() && r.estatus !== 'Cancelado'; }
 
@@ -453,7 +472,7 @@ function indicadores_(yo, regs) {
   var anio = Number(hoy.slice(0, 4)), mes = hoy.slice(0, 7);
   var porTipo = {}, global = { porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0 };
   var mios = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, apartados: 0 };   // «Mis asuntos» y mis números apartados
-  yo.tipos.forEach(function (t) { porTipo[t] = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0, esteMes: 0, mios: 0, porCompletar: 0 }; });
+  yo.tipos.forEach(function (t) { porTipo[t] = { total: 0, porAtender: 0, vencidos: 0, venceHoy: 0, sinAcuse: 0, sinArchivo: 0, esteMes: 0, mios: 0, porCompletar: 0 }; });
   regs.forEach(function (f) {
     var r = f.o, p = porTipo[r.tipo];
     if (!p) return;   // libretas que no tiene: no cuentan aunque se las hayan turnado
@@ -481,6 +500,7 @@ function indicadores_(yo, regs) {
     if (Number(r.anio) === anio) {
       p.total++;
       if (cuentaSinAcuse_(r, corte)) p.sinAcuse++;   // igual que el indicador de la libreta
+      if (cuentaSinArchivo_(r, corte)) p.sinArchivo++;
       if (String(r.fecha_recepcion || r.fecha).slice(0, 7) === mes) p.esteMes++;
     }
   });
@@ -610,8 +630,6 @@ function agregarNota_(yo, d) {
   if (texto.length > MAX_NOTA) throw falla_('DATOS', 'La nota es demasiado larga (máximo ' + MAX_NOTA + ' caracteres).');
   var r = registroPorId_(d.id);
   puedeTipo_(yo, r.tipo);
-  // Consulta solo puede anotar en lo que le turnaron (es quien lo atiende)
-  if (yo.rol === 'consulta' && r.turnado_usuario !== yo.usuario) throw falla_('PERMISO', 'Solo quien captura o la persona a quien se turnó el asunto puede agregar notas.');
   if (r.estatus === 'Cancelado' && yo.rol !== 'admin') throw falla_('PERMISO', 'Este registro está cancelado.');
   bitacora_(yo.usuario, 'nota', r.id, texto);
   SpreadsheetApp.flush();
@@ -695,6 +713,7 @@ function guardar_(yo, d) {
   var tipo = String(d.tipo || '');
   var nuevo = !d.id;
   var limpio = validarRegistro_(d, tipo);
+  if (nuevo) exigirObligatorios_(limpio, tipo, null);   // al editar se revisa más abajo, contra lo que ya tenía el registro
   var lock = candado_(20000);
   try {
     var t = tabla_(HOJAS.REG);
@@ -729,6 +748,7 @@ function guardar_(yo, d) {
         throw falla_('PERMISO', 'Este registro está cancelado. Solo un administrador puede modificarlo.');
       }
       limpio = validarRegistro_(d, r.tipo);   // se valida con la libreta del registro, no con la que mande el navegador
+      exigirObligatorios_(limpio, r.tipo, r);
       revisarRelacion();
       if (Number(d.version) !== Number(r.version)) {
         throw falla_('CAMBIO', 'Alguien más modificó este registro mientras lo editabas. Ciérralo y vuelve a abrirlo para ver los cambios.');
@@ -858,6 +878,29 @@ function validarRegistro_(d, tipo, idsDirectorio) {
   return o;
 }
 
+/**
+ * 1.10.0 · Datos obligatorios de la libreta (OBLIGATORIOS). Es la regla de verdad: la página solo avisa antes.
+ *  previo = null → alta (también «Duplicar», «Varios destinatarios» y completar un número apartado): se piden todos.
+ *  previo = el registro guardado → edición: un registro viejo que ya estaba incompleto se puede seguir
+ *  editando sin llenarlo todo, pero no se puede vaciar un dato que ya tenía. Un número apartado
+ *  («por completar») se trata como alta: al completarlo se llena todo.
+ */
+function exigirObligatorios_(o, tipo, previo) {
+  var lista = OBLIGATORIOS[tipo];
+  if (!lista) return;
+  var viejo = previo && !porCompletar_(previo) ? previo : null;
+  var etiqueta = {};
+  TIPOS[tipo].campos.forEach(function (c) { etiqueta[c[0]] = c[1]; });
+  var falta = [];
+  lista.forEach(function (k) {
+    var col = k === 'dirigido' ? 'dirigido_a' : k;
+    if (String(o[col] === undefined || o[col] === null ? '' : o[col]).trim()) return;
+    if (viejo && !String(viejo[col] === undefined || viejo[col] === null ? '' : viejo[col]).trim()) return;   // ya estaba vacío
+    falta.push(etiqueta[k] || k);
+  });
+  if (falta.length) throw falla_('DATOS', 'Faltan datos obligatorios: ' + falta.join(', ') + '.');
+}
+
 function fechaValida_(v) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
   var p = v.split('-').map(Number);
@@ -964,6 +1007,7 @@ function guardarVarios_(yo, d) {
     x.dirigido_a = p.dirigido_a;
     var l = validarRegistro_(x, tipo, ids);
     if (!l.dirigido_a) throw falla_('DATOS', 'Al destinatario ' + (i + 1) + ' le falta el nombre.');
+    exigirObligatorios_(l, tipo, null);
     var clave = l.dirigido_id || ('t:' + String(l.dirigido_a).split('\n')[0].toLowerCase().replace(/\s+/g, ' '));
     if (vistos[clave]) throw falla_('DATOS', 'Elegiste dos veces a «' + String(l.dirigido_a).split('\n')[0] + '».');
     vistos[clave] = true;
@@ -1235,6 +1279,7 @@ function validarTurno_(usuario, tipo) {
   var u = buscarUsuario_(usuario);
   if (!u) throw falla_('DATOS', 'No existe el usuario «' + usuario + '» para turnarle el asunto.');
   if (u.activo !== 'SI') throw falla_('DATOS', 'No se puede turnar a ' + u.nombre + ': su cuenta está desactivada.');
+  if (!rolValido_(u)) throw falla_('DATOS', 'No se puede turnar a ' + u.nombre + ': su cuenta no tiene un rol asignado.');
   if (tiposDeUsuario_(u).indexOf(tipo) < 0) throw falla_('DATOS', 'No se puede turnar a ' + u.nombre + ': no tiene acceso a ' + TIPOS[tipo].nombre + '.');
 }
 
@@ -1250,7 +1295,7 @@ function usuariosTurno_(yo, d) {
   var tipo = String(d.tipo || '');
   puedeTipo_(yo, tipo);
   return tabla_(HOJAS.USR).filas.map(function (f) { return f.o; })
-    .filter(function (u) { return u.activo === 'SI' && tiposDeUsuario_(u).indexOf(tipo) >= 0; })
+    .filter(function (u) { return u.activo === 'SI' && rolValido_(u) && tiposDeUsuario_(u).indexOf(tipo) >= 0; })
     .map(function (u) { return { usuario: u.usuario, nombre: u.nombre }; })
     .sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); });
 }
@@ -1617,12 +1662,14 @@ function subirArchivo_(yo, d) {
     anterior = f.o[campo + '_id'];
     f.o[campo + '_id'] = archivo.getId();
     f.o[campo + '_nombre'] = corta_(String(d.nombre || nombre).replace(/[\\/:*?"<>|]/g, '_'), 120);
-    if (clase === 'acuse') f.o.acuse = 'SI';
+    // En Oficios salientes el escaneo ya lleva el acuse (1.10.0): subirlo marca el acuse, igual que subir el acuse en las demás libretas.
+    var acuseMarcado = f.o.acuse !== 'SI' && (clase === 'acuse' || f.o.tipo === 'OFS');
+    if (clase === 'acuse' || f.o.tipo === 'OFS') f.o.acuse = 'SI';
     f.o.modificado_por = yo.usuario;
     f.o.modificado_en = sello_(new Date());
     f.o.version = Number(f.o.version) + 1;
     escribirFila_(t.sh, HOJAS.REG, f.fila, f.o);
-    bitacora_(yo.usuario, 'archivo', f.o.id, (anterior ? 'Reemplazó ' : 'Subió ') + (clase === 'acuse' ? 'el acuse' : 'el documento') + ': ' + f.o[campo + '_nombre']);
+    bitacora_(yo.usuario, 'archivo', f.o.id, (anterior ? 'Reemplazó ' : 'Subió ') + (clase === 'acuse' ? 'el acuse' : 'el documento') + ': ' + f.o[campo + '_nombre'] + (acuseMarcado && clase !== 'acuse' ? ' (acuse marcado)' : ''));
     res = { registro: publico_(f.o) };
     guardado = true;
   } finally {
@@ -1819,7 +1866,7 @@ function listarUsuarios_() {
     var o = f.o;
     return { usuario: o.usuario, nombre: o.nombre, rol: o.rol, tipos: o.tipos, activo: o.activo,
       debe_cambiar: o.debe_cambiar, bloqueado: !!(o.bloqueado_hasta && new Date(o.bloqueado_hasta) > ahora),
-      creado_en: o.creado_en, ultimo_acceso: o.ultimo_acceso, informes: o.rol === 'admin' ? 'SI' : (o.informes === 'SI' ? 'SI' : 'NO'),
+      creado_en: o.creado_en, ultimo_acceso: o.ultimo_acceso, sinRol: !rolValido_(o),
       correo: o.correo || '', dosPasos: !!o.totp };
   });
 }
@@ -1827,15 +1874,13 @@ function listarUsuarios_() {
 function guardarUsuario_(yo, d) {
   var nombre = String(d.nombre || '').replace(/\s+/g, ' ').trim();
   var rol = String(d.rol || '');
-  if (!ROLES[rol]) throw falla_('DATOS', 'Rol desconocido.');
+  if (!rol) throw falla_('DATOS', 'Elige el rol del usuario.');
+  if (!Object.prototype.hasOwnProperty.call(ROLES, rol)) throw falla_('DATOS', 'Rol desconocido.');
   if (nombre.length < 3 || nombre.length > 120) throw falla_('DATOS', 'Escribe el nombre completo.');
   var tipos = rol === 'admin' ? '*' : (d.tipos === '*' ? '*' : (Array.isArray(d.tipos) ? d.tipos : String(d.tipos || '').split(','))
     .map(function (x) { return String(x).trim(); }).filter(function (x) { return TIPOS[x]; }).join(','));
   if (!tipos) throw falla_('DATOS', 'Elige al menos una libreta.');
   var activo = d.activo === 'NO' ? 'NO' : 'SI';
-  // Informes: los admin siempre; para los demás, solo si se marca. undefined = la
-  // página (versión anterior) no lo manda: al editar se conserva lo que ya tenía.
-  var informes = d.informes === undefined || d.informes === null ? undefined : (d.informes === true || d.informes === 'SI' ? 'SI' : 'NO');
   // Correo para avisos: undefined = página anterior (se conserva).
   var correo = d.correo === undefined || d.correo === null ? undefined : String(d.correo).trim().toLowerCase();
   if (correo !== undefined && !correoValido_(correo)) throw falla_('DATOS', 'Ese correo no parece válido.');
@@ -1852,9 +1897,9 @@ function guardarUsuario_(yo, d) {
       if (t.filas.some(function (f) { return f.o.usuario === usuario; })) throw falla_('DATOS', 'Ese usuario ya existe.');
       var u = { usuario: usuario, nombre: nombre, rol: rol, tipos: tipos, activo: activo, clave: hash,
         debe_cambiar: 'SI', intentos: 0, bloqueado_hasta: '', sello: nuevoSello_(), creado_en: ahora, ultimo_acceso: '',
-        informes: rol !== 'admin' && informes === 'SI' ? 'SI' : '', correo: correo || '', totp: '' };
+        informes: '', correo: correo || '', totp: '' };   // «informes» ya no se usa (1.10.0): solo los administradores ven Informes
       escribirFila_(t.sh, HOJAS.USR, t.sh.getLastRow() + 1, u);
-      bitacora_(yo.usuario, 'usuarios', '', 'Alta de ' + usuario + ' (' + ROLES[rol] + ', ' + tipos + (u.informes === 'SI' ? ', con Informes' : '') + ')');
+      bitacora_(yo.usuario, 'usuarios', '', 'Alta de ' + usuario + ' (' + ROLES[rol] + ', ' + tipos + ')');
       return { usuario: usuario, temporal: temporal };
     }
     var f = t.filas.filter(function (x) { return x.o.usuario === d.usuario; })[0];
@@ -1865,19 +1910,17 @@ function guardarUsuario_(yo, d) {
       if (!otros.length) throw falla_('DATOS', 'Debe quedar al menos un administrador activo.');
       if (f.o.usuario === yo.usuario) throw falla_('DATOS', 'No puedes quitarte a ti mismo el rol de administrador ni desactivarte.');
     }
-    var informesNuevo = rol === 'admin' ? '' : (informes === undefined ? (f.o.informes === 'SI' ? 'SI' : '') : (informes === 'SI' ? 'SI' : ''));
-    var txtInf = function (v) { return v === 'SI' ? '/informes' : ''; };
-    var antes = f.o.rol + '/' + f.o.tipos + '/' + f.o.activo + txtInf(f.o.informes);
+    var antes = f.o.rol + '/' + f.o.tipos + '/' + f.o.activo;
     var quitar2fa = !!(d.quitar2fa && f.o.totp);
-    var cerrar = f.o.activo !== activo || f.o.rol !== rol || f.o.tipos !== tipos || (f.o.informes || '') !== informesNuevo || quitar2fa;
+    var cerrar = f.o.activo !== activo || f.o.rol !== rol || f.o.tipos !== tipos || quitar2fa;
     var extra = [];
-    f.o.nombre = nombre; f.o.rol = rol; f.o.tipos = tipos; f.o.activo = activo; f.o.informes = informesNuevo;
+    f.o.nombre = nombre; f.o.rol = rol; f.o.tipos = tipos; f.o.activo = activo; f.o.informes = '';   // «informes» ya no se usa (1.10.0)
     if (correo !== undefined && correo !== (f.o.correo || '')) { extra.push('correo «' + (f.o.correo || '') + '» → «' + correo + '»'); f.o.correo = correo; }
     if (d.desbloquear) { f.o.bloqueado_hasta = ''; f.o.intentos = 0; CacheService.getScriptCache().remove('bloq:' + f.o.usuario); extra.push('desbloqueado'); }
     if (quitar2fa) { f.o.totp = ''; extra.push('le quitó la verificación en dos pasos'); }
     if (cerrar) f.o.sello = nuevoSello_();   // permisos nuevos = sesión nueva
     escribirFila_(t.sh, HOJAS.USR, f.fila, f.o);
-    bitacora_(yo.usuario, 'usuarios', '', 'Cambió ' + f.o.usuario + ': ' + antes + ' → ' + rol + '/' + tipos + '/' + activo + txtInf(informesNuevo) +
+    bitacora_(yo.usuario, 'usuarios', '', 'Cambió ' + f.o.usuario + ': ' + antes + ' → ' + rol + '/' + tipos + '/' + activo +
       (extra.length ? ' (' + extra.join(', ') + ')' : ''));
     return { usuario: f.o.usuario };
   } finally {

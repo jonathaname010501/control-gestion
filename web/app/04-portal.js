@@ -115,7 +115,7 @@
     for (var k in MODULOS) {
       var m = MODULOS[k];
       if ((m.ruta || k) !== r) continue;
-      if (['usuarios', 'bitacora', 'config', 'exportacion'].indexOf(k) >= 0 && !esAdmin()) return null;
+      if (['usuarios', 'bitacora', 'config', 'exportacion', 'directorio', 'informes'].indexOf(k) >= 0 && !esAdmin()) return null;
       if (k === 'exportacion' && !exportacionLista()) return null;
       if (m.accion && !tiene(m.accion)) return null;
       return { vista: k };
@@ -269,6 +269,7 @@
         if (d.porAtender) chips.push(d.porAtender + ' por atender');
         if (d.vencidos) chips.push(d.vencidos + (d.vencidos === 1 ? ' vencido' : ' vencidos'));
         if (t === 'OFS' && d.sinAcuse) chips.push(d.sinAcuse + ' sin acuse');
+        if (t === 'OFS' && d.sinArchivo) chips.push(d.sinArchivo + ' sin archivo');
         if (d.porCompletar) chips.push(d.porCompletar + ' por completar');
         return { titulo: ini.todosTipos[t].nombre, desc: DESC_TIPO[t], color: COLOR_TIPO[t], icono: ICONO_TIPO[t], chips: chips, ir: function () { irA('libreta', t); } };
       });
@@ -279,10 +280,9 @@
         { titulo: 'Pendientes', desc: 'Lo que está por atender, por vencer y los oficios sin acuse.', color: 'guinda', icono: 'alarma',
           chips: (ind.porTipo && Object.keys(ind.porTipo).length ? [g.porAtender + ' por atender'] : ['Por atender']).concat(g.vencidos ? [g.vencidos + ' vencidos'] : []).concat(g.sinAcuse ? [g.sinAcuse + ' oficios sin acuse'] : []), ir: function () { irA('pendientes'); } },
         { titulo: 'Calendario', desc: 'Las fechas límite del mes: qué vence cada día y qué ya se pasó.', color: 'azul', icono: 'calendario',
-          chips: ['Por día', 'Vencidos'].concat(tiene('misAsuntos') ? ['Solo lo mío'] : []), ir: function () { irA('calendario'); } },
-        { titulo: 'Directorio', desc: 'Las personas a quienes se dirige o que firman, escritas siempre igual.', color: 'azul', icono: 'contactos',
-          chips: [E.directorio.length + ' personas', 'Buscar'].concat(puedeCapturar() ? ['Agregar'] : []), ir: function () { irA('directorio'); } }
-      ]).concat(tiene('informes') ? [{ titulo: 'Informes', desc: 'Registros por mes, remitentes y destinatarios, tiempo de respuesta y atención a tiempo.', color: 'cafe', icono: 'grafica',
+          chips: ['Por día', 'Vencidos'].concat(tiene('misAsuntos') ? ['Solo lo mío'] : []), ir: function () { irA('calendario'); } }
+      ]).concat(esAdmin() ? [{ titulo: 'Directorio', desc: 'Las personas a quienes se dirige o que firman, escritas siempre igual.', color: 'azul', icono: 'contactos',
+        chips: [E.directorio.length + ' personas', 'Buscar', 'Agregar'], ir: function () { irA('directorio'); } }] : []).concat(esAdmin() && tiene('informes') ? [{ titulo: 'Informes', desc: 'Registros por mes, remitentes y destinatarios, tiempo de respuesta y atención a tiempo.', color: 'cafe', icono: 'grafica',
         chips: ['Gráficas', 'Por periodo', 'Excel'], ir: function () { irA('informes'); } }] : []);
       var admin = esAdmin() ? [
         { titulo: 'Usuarios', desc: 'Quién entra, con qué rol y a qué libretas.', color: 'guinda', icono: 'usuarios', chips: ['Dar de alta', 'Roles', 'Contraseñas'], ir: function () { irA('usuarios'); } },
@@ -391,7 +391,9 @@
     var visto = pref('visto:' + E.ini.yo.usuario);
     if (visto === NOVEDADES) return;
     // Quien entra por primera vez (con contraseña temporal) ve los primeros pasos; los demás, lo nuevo
-    mostrarGuia(!visto && E.nuevoUsuario ? 'inicio' : 'novedades');
+    var modo = !visto && E.nuevoUsuario ? 'inicio' : 'novedades';
+    if (modo === 'novedades' && !puntosGuia('novedades').length) { pref('visto:' + E.ini.yo.usuario, NOVEDADES); return; }   // nada nuevo para su caso: no abrir vacía
+    mostrarGuia(modo);
   }
 
   function puntosGuia(modo) {
@@ -399,22 +401,18 @@
     var p = [];
     var poner = function (cond, ico, titulo, texto) { if (cond) p.push({ ico: ico, titulo: titulo, texto: texto }); };
     if (modo === 'novedades') {
-      poner(cap && ofs && tiene('apartar'), 'apartar', 'Apartar número', 'En Oficios salientes, «Apartar número» te da el siguiente número al instante, aunque todavía no tengas el oficio. Queda «por completar» hasta que le pongas el asunto.');
-      poner(cap, 'copiar', 'Lo de siempre', 'Al capturar, la firma (o el destinatario) y quién elaboró salen como en tu último registro. Con «Guardar y capturar otro» queda listo el siguiente.');
-      poner(cap, 'subir', 'Arrastra el escaneo', 'En computadora, suelta el PDF o la imagen sobre el registro o sobre el formulario.');
-      poner(cap && tiene('guardarLote'), 'check', 'Atendido en un toque', 'En «Mis asuntos» y en «Pendientes», cada asunto tiene su botón «Atendido». Si te equivocas, el aviso trae «Deshacer».');
-      poner(true, 'calendario', 'Calendario', 'Las fechas límite del mes: qué vence cada día y qué ya se pasó. Está en Seguimiento.');
-      poner(tiene('agregarNota'), 'nota', 'Notas de seguimiento', 'En cada registro, anota lo que va pasando («Se llamó al enlace», «Pidieron prórroga»). Quedan con tu nombre y la fecha.');
-      poner(true, 'imprimir', 'Volante con código QR', 'El volante impreso trae un código: escanéalo con el celular y abre el registro directo.');
-      poner(true, 'ordenar', 'Ordenar y filtros recordados', 'Toca el título de una columna para ordenar. Cada libreta recuerda su último filtro en este equipo.');
+      poner(ofs, 'subir', 'Un solo escaneo en Oficios salientes', 'El oficio escaneado ya lleva el acuse, así que se sube en un solo lugar. Al subirlo, la casilla «Acuse» se marca sola.');
+      poner(ofs, 'clip', 'Filtro «Sin archivo»', 'En Oficios salientes, el cuadro «Sin archivo» (y el aviso de su tarjeta) te muestra los oficios que todavía no tienen escaneo.');
+      poner(cap && ofs, 'check', 'Datos obligatorios', 'Al capturar un oficio saliente, el sistema te avisa antes de guardar qué falta: destinatario, firma, quién elaboró y número de carpeta.');
+      poner(admin, 'usuarios', 'Roles', 'Informes y Directorio son solo para administradores, y el rol «Consulta» ya no existe: cada usuario es Administrador o Captura.');
     } else {
       poner(true, 'libro', 'El portal', 'Cada tarjeta abre una libreta o una pantalla. Los números de cada tarjeta te dicen qué está por atender, vencido o sin acuse.');
       poner(true, 'buscar', 'Buscar', 'El buscador de arriba busca en todas tus libretas a la vez, sin importar acentos ni mayúsculas.');
       poner(cap, 'mas', 'Registrar', 'En cada libreta, «Nuevo…». En Oficios salientes el número sale solo al guardar; si lo necesitas antes, «Apartar número».');
       poner(cap, 'subir', 'Escaneos', 'Sube el PDF, toma una foto con el celular o suelta el archivo sobre el registro.');
       poner(true, 'diana', 'Mis asuntos', 'Lo que te turnan aparece en «Mis asuntos», con lo vencido y lo que vence hoy hasta arriba.');
-      poner(true, 'nota', 'Notas', 'En el detalle de un registro puedes dejar notas de seguimiento (si capturas o si te lo turnaron).');
-      poner(admin, 'usuarios', 'Administración', 'Usuarios (altas y permisos), Bitácora (quién hizo qué) y Configuración (plazos, días inhábiles, avisos).');
+      poner(true, 'nota', 'Notas', 'En el detalle de un registro puedes dejar notas de seguimiento.');
+      poner(admin, 'usuarios', 'Administración', 'Usuarios (altas y permisos), Bitácora (quién hizo qué), Directorio, Informes, Exportación y Configuración (plazos, días inhábiles, avisos). Solo los ven los administradores.');
       poner(true, 'llave', 'Tu cuenta', 'En «Mi cuenta» cambias tu contraseña y activas la verificación en dos pasos.');
     }
     return p;
@@ -430,7 +428,7 @@
         pestanas.appendChild(h('button', { class: 'guia__tab' + (x[0] === m ? ' activa' : ''), role: 'tab', 'aria-selected': x[0] === m ? 'true' : 'false', onclick: function () { pintar(x[0]); } }, x[1]));
       });
       vaciar(cuerpo).appendChild(h('p', { class: 'guia__intro' }, m === 'novedades'
-        ? 'Versión ' + NOVEDADES + ': cosas para que capturar y dar seguimiento sea más rápido.'
+        ? 'Versión ' + NOVEDADES + ': lo nuevo.'
         : 'Lo básico para trabajar en Control de Gestión.'));
       cuerpo.appendChild(h('ul', { class: 'guia__lista' }, puntosGuia(m).map(function (x) {
         return h('li', { class: 'guia__i' }, h('span', { class: 'guia__ico' }, icono(x.ico)), h('div', null, h('strong', null, x.titulo), h('p', null, x.texto)));

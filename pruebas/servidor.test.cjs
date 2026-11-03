@@ -45,7 +45,7 @@ function alta(e, usuario, rol, tipos) {
 
 const nuevoOficio = (extra = {}) => ({ tipo: "OFS", asunto: "Solicitud de apoyo logístico", fecha: "2026-10-21",
   dirigido_id: "P0030", dirigido_a: "Mtro. Daniel Esteban Ramírez Garcén\nDirector General", firma_id: "P0063",
-  firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", acuse: "NO", ...extra });
+  firma: "Lic. José Antonio Jiménez Islas\nSubsecretario", elaboro: "Valentina J", carpeta: "C-01", acuse: "NO", ...extra });   // 1.10.0: los salientes piden también la carpeta
 
 test("solo estas funciones se pueden llamar desde el navegador", () => {
   const e = crearEntorno();
@@ -78,7 +78,7 @@ testBase("API para Vercel (doPost): mismas reglas que api()", () => {
   assert.equal(ok.datos.length, 416);
   assert.equal(e.post("esto no es json").json.codigo, "PETICION");
   assert.equal(e.post("").json.codigo, "PETICION");
-  const cap = alta(e, "beto", "consulta", ["OFE"]);
+  const cap = alta(e, "beto", "captura", ["OFE"]);
   assert.equal(e.post({ token: cap, accion: "usuarios" }).json.codigo, "PERMISO");
   assert.equal(e.post({ token: cap, accion: "listar", datos: { tipo: "OFS", anio: 2026 } }).json.codigo, "PERMISO");
 });
@@ -189,7 +189,7 @@ testBase("sesión: token falso, contraseña temporal, desactivación y cambio de
 testBase("permisos por rol y por libreta", () => {
   const e = preparar();
   const cap = alta(e, "beto", "captura", ["OFE"]);
-  const con = alta(e, "carla", "consulta", ["OFS", "OFE"]);
+  const con = alta(e, "carla", "captura", ["OFS", "OFE"]);
   const ini = e.api(cap, "inicio").datos;
   assert.deepEqual(ini.orden, ["OFE"]);
   assert.equal(ini.conteos.OFE, 146);
@@ -197,9 +197,8 @@ testBase("permisos por rol y por libreta", () => {
   assert.equal(e.api(cap, "obtener", { id: "m-ofs-2026-001" }).codigo, "PERMISO");
   assert.equal(e.api(cap, "guardar", nuevoOficio()).codigo, "PERMISO");
   assert.equal(e.api(cap, "descargarArchivo", { id: "m-ofs-2026-001", clase: "oficio" }).codigo, "PERMISO");
-  assert.equal(e.api(con, "guardar", { ...nuevoOficio(), tipo: "OFE" }).codigo, "PERMISO", "consulta no captura");
   assert.equal(e.api(con, "listar", { tipo: "OFS", anio: 2026 }).datos.length, 416);
-  for (const [acc, d] of [["usuarios"], ["bitacora"], ["guardarConfig", {}], ["cancelar", { id: "m-ofs-2026-001", motivo: "prueba de permisos" }], ["unirPersonas", { de: "P0001", a: "P0002" }], ["restablecerClave", { usuario: "admin" }]]) {
+  for (const [acc, d] of [["usuarios"], ["bitacora"], ["informes", { desde: "2026-01-01", hasta: "2026-12-31" }], ["directorio"], ["guardarConfig", {}], ["cancelar", { id: "m-ofs-2026-001", motivo: "prueba de permisos" }], ["unirPersonas", { de: "P0001", a: "P0002" }], ["restablecerClave", { usuario: "admin" }]]) {
     assert.equal(e.api(cap, acc, d).codigo, "PERMISO", acc);
     assert.equal(e.api(con, acc, d).codigo, "PERMISO", acc);
   }
@@ -350,7 +349,7 @@ testBase("archivos: tipo real, tamaño, permisos, descarga idéntica, acuse marc
   assert.equal([...e.drive.archivos.values()].filter((a) => a.mime === "application/pdf" && !a.papelera).length, 1);
   const q = e.api(cap, "quitarArchivo", { id: r.id, clase: "oficio" }).datos.registro;
   assert.equal(q.tiene_archivo, false);
-  const otro = alta(e, "dora", "consulta", ["OFS"]);
+  const otro = alta(e, "dora", "captura", ["OFS"]);
   assert.equal(e.api(otro, "descargarArchivo", { id: r.id, clase: "acuse" }).codigo, "PERMISO");
   const bit = e.api(e.admin, "bitacora", { accion: "descarga" }).datos.filas;
   assert.equal(bit[0].usuario, "beto");

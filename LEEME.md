@@ -19,7 +19,7 @@ Para instalarlo: **[INSTALAR.md](INSTALAR.md)**.
 | La misma persona escrita de muchas formas (205 textos para ~127 personas en "Dirigido a") | **Directorio**: se elige a la persona de una lista. Si no está, se agrega una vez (avisa si ya hay alguien con nombre parecido). |
 | "Valentina J", "VALENTINA J", "valentina"… | Lista de sugerencias para que se escriba igual siempre. |
 | Fechas como texto (`18/0672026`, `SIN DATO`) | Calendario; no acepta fechas imposibles. |
-| Palomita "ü" en Wingdings para el acuse | Casilla, y se puede **subir el acuse escaneado** (al subirlo se marca solo). |
+| Palomita "ü" en Wingdings para el acuse | Casilla, y se puede **subir el escaneo** (en Oficios salientes el escaneo ya lleva el acuse y al subirlo la casilla se marca sola; en las demás libretas hay también un archivo de acuse). |
 | Seguimiento escrito en Observaciones ("SE RECIBE RESPUESTA…") | Estatus (Pendiente, En trámite, Atendido, Concluido), **fecha límite** con aviso de vencido, "turnado a", y **Responder con oficio** que liga el entrante con el saliente y lo marca como Atendido. |
 | Seis hojas con columnas en distinto orden | Un solo formato por libreta, con las mismas columnas que ya usaban. |
 | Cualquiera puede borrar o mover filas | Nada se borra: se **cancela** con motivo y el número no se reutiliza. Todo queda en la **Bitácora**. |
@@ -33,10 +33,12 @@ Igual que Gabinetes:
 - **Al entrar hay un portal** con saludo y tarjetas de color. Cada tarjeta muestra
   sus números del año, lo que está por atender, lo vencido y los oficios sin acuse.
 - **Cada libreta abre su propia pantalla** con "← Inicio", su color y sus indicadores.
-  Al tocar un indicador ("Por atender", "Vencidos", "Sin acuse", "De este mes") se
-  filtra la lista.
-- **Pendientes, Directorio y Administración** (Usuarios, Bitácora, Configuración)
-  también tienen su tarjeta y su pantalla.
+  Al tocar un indicador ("Por atender", "Vencidos", "Sin acuse", "Sin archivo", "De este mes")
+  se filtra la lista. («Sin archivo» solo está en Oficios salientes: los que no tienen ningún
+  escaneo.)
+- **Pendientes** y **Calendario** tienen su tarjeta y su pantalla. **Directorio, Informes** y
+  la administración (Usuarios, Bitácora, Exportación, Configuración) son solo para
+  administradores.
 - **Funciona el botón Atrás** del navegador, y cada pantalla tiene su
   dirección (por ejemplo `#/oficios-entrantes`).
 
@@ -211,7 +213,7 @@ Por seguridad, la plantilla tiene que estar en la carpeta **«Control de Gestió
 Plantillas (NO COMPARTIR)»** que crea `instalar()`: así nadie puede usar el botón para
 leer otro documento de la cuenta dueña.
 
-## Días inhábiles y «sin acuse» desde
+## Días inhábiles y «sin acuse» / «sin archivo» desde
 
 En **Configuración**:
 
@@ -221,9 +223,9 @@ En **Configuración**:
   de descanso obligatorio de la Ley Federal del Trabajo más jueves y viernes santo; hay
   que revisarlos contra el acuerdo de días inhábiles que publica la Gaceta Oficial de la
   CDMX cada año (vacaciones, días adicionales) y agregar o quitar lo que haga falta.
-- **«Sin acuse» cuenta desde**: con una fecha (por ejemplo, el día en que empezaron a
-  usar el sistema), el aviso de «sin acuse» del portal y de la libreta solo cuenta lo de
-  esa fecha en adelante. Lo migrado del Excel que nunca tuvo acuse deja de inflar el
+- **«Sin acuse» y «Sin archivo» cuentan desde**: con una fecha (por ejemplo, el día en que
+  empezaron a usar el sistema), los avisos de «sin acuse» y «sin archivo» del portal y de la
+  libreta solo cuentan lo de esa fecha en adelante. Lo migrado del Excel que nunca tuvo acuse deja de inflar el
   número. El indicador lleva un `*` y su explicación al pasar el mouse.
 - **Plazo de respuesta**: si está vacío, el portal le recuerda al administrador que lo
   ponga (sin plazo no hay fecha límite y «Vencidos» siempre dice 0).
@@ -290,9 +292,9 @@ vista previa y luego «Imprimir» abre el cuadro de impresión del navegador.
 
 ## Informes
 
-Tarjeta y pantalla **«Informes»** para los administradores y para quien el
-administrador marque en **Usuarios → Editar → «Puede ver Informes»** (columna nueva
-`informes` en la pestaña *Usuarios*). Cada quien ve solo sus libretas.
+Tarjeta y pantalla **«Informes»**, solo para los administradores (hasta la 1.9.0 se podía dar
+a otros usuarios con una casilla; ya no. La columna `informes` de la pestaña *Usuarios* quedó
+sin usarse).
 
 - **Filtros** arriba: periodo (este año, últimos 12 meses, este mes, año pasado u otro)
   y libretas.
@@ -351,35 +353,49 @@ Las mismas seis hojas del minutario, con sus columnas:
 - **Volantes de turno**
 
 Además, todas tienen **Seguimiento** (estatus, fecha límite, turnado a, relacionado
-con) y **Archivos** (documento escaneado y acuse: PDF, JPG o PNG hasta 10 MB).
+con) y **Archivos** (PDF, JPG o PNG hasta 10 MB): el documento escaneado y, según la libreta, el
+acuse o el original. En **Oficios salientes** es un solo escaneo, que ya lleva el acuse.
+
+### Datos obligatorios en Oficios salientes
+
+Al capturar un oficio saliente son obligatorios **Dirigido a, Asunto, Fecha, Firma, Revisó /
+Elaboró y No. de carpeta** (Observaciones no). El formulario los marca con asterisco y avisa
+todos los que faltan; el servidor también los exige. «Apartar número» no pide nada (se piden
+al completarlo). Un registro viejo que ya estaba incompleto se puede seguir editando sin
+llenar todo, pero no se puede vaciar un dato que ya tenía. Las demás libretas piden solo
+asunto y fecha.
 
 ## Roles
 
-| | Administrador | Captura | Consulta |
-|---|:-:|:-:|:-:|
-| Ver y buscar en sus libretas | ✔ | ✔ | ✔ |
-| Abrir escaneos | ✔ | ✔ | ✔ |
-| Exportación a Excel (todas o una libreta, de fecha a fecha) | ✔ | — | — |
-| Registrar y editar | ✔ | ✔ | — |
-| Varios destinatarios y turnar a una persona del sistema | ✔ | ✔ | — |
-| Ver «Mis asuntos» (lo que le turnaron) | ✔ | ✔ | ✔ |
-| Buscador general (en sus libretas) | ✔ | ✔ | ✔ |
-| Duplicar un registro, tomar foto con el celular | ✔ | ✔ | — |
-| Cambiar varios a la vez, borrador del oficio en Word | ✔ | ✔ | — |
-| Apartar número, «Atendido» en un toque, deshacer | ✔ | ✔ | — |
-| Notas de seguimiento | ✔ | ✔ | en lo que le turnaron |
-| Calendario de fechas límite | ✔ | ✔ | ✔ |
-| Mi cuenta: contraseña, dos pasos, correo para avisos | ✔ | ✔ | ✔ |
-| Modo mantenimiento, respaldo completo en Excel | ✔ | — | — |
-| Imprimir volante de recepción | ✔ | ✔ | ✔ |
-| Informes (gráficas y Excel de sus libretas) | ✔ | si se le da permiso | si se le da permiso |
-| Subir o quitar escaneos | ✔ | ✔ | — |
-| Agregar personas al directorio | ✔ | ✔ | — |
-| Cancelar un registro | ✔ | — | — |
-| Unir fichas duplicadas del directorio | ✔ | — | — |
-| Usuarios, Bitácora, Configuración | ✔ | — | — |
+Hay dos roles: **Administrador** y **Captura**. (El rol «Consulta» se retiró en la 1.10.0: quien
+lo tenía en la hoja sale en **Usuarios** como «Sin rol · elige uno» y no entra hasta que un
+administrador le asigne uno.)
 
-Captura y Consulta solo ven las libretas que el administrador les marque.
+| | Administrador | Captura |
+|---|:-:|:-:|
+| Ver y buscar en sus libretas | ✔ | ✔ |
+| Abrir escaneos | ✔ | ✔ |
+| Registrar y editar | ✔ | ✔ |
+| Varios destinatarios y turnar a una persona del sistema | ✔ | ✔ |
+| Ver «Mis asuntos» (lo que le turnaron) | ✔ | ✔ |
+| Buscador general (en sus libretas) | ✔ | ✔ |
+| Duplicar un registro, tomar foto con el celular | ✔ | ✔ |
+| Cambiar varios a la vez, borrador del oficio en Word | ✔ | ✔ |
+| Apartar número, «Atendido» en un toque, deshacer | ✔ | ✔ |
+| Notas de seguimiento | ✔ | ✔ |
+| Calendario de fechas límite | ✔ | ✔ |
+| Mi cuenta: contraseña, dos pasos, correo para avisos | ✔ | ✔ |
+| Imprimir volante de recepción | ✔ | ✔ |
+| Subir o quitar escaneos | ✔ | ✔ |
+| Elegir personas en el formulario y agregar una nueva desde ahí | ✔ | ✔ |
+| Cancelar un registro | ✔ | — |
+| **Informes** (gráficas y Excel) | ✔ | — |
+| **Directorio** (la pantalla: buscar, editar y unir fichas duplicadas) | ✔ | — |
+| Exportación a Excel (todas o una libreta, de fecha a fecha) | ✔ | — |
+| Modo mantenimiento, respaldo completo en Excel | ✔ | — |
+| Usuarios, Bitácora, Configuración | ✔ | — |
+
+Captura solo ve las libretas que el administrador le marque.
 
 ## Seguridad: qué protege y qué no
 
@@ -445,7 +461,7 @@ tipografías de Google Fonts.
   cuenta del área con verificación en dos pasos, y que la conozcan pocas personas.
 - **Los administradores, con dos pasos.** Actívenla en «Mi cuenta» y luego háganla
   obligatoria en Configuración.
-- **No compartas la hoja ni las carpetas** "para que alguien la vea": dale un usuario de Consulta.
+- **No compartas la hoja ni las carpetas** "para que alguien la vea": dale un usuario de Captura con solo las libretas que necesite.
 - Quien pueda **editar el proyecto de Apps Script** puede leer todo. No agregues editores.
 - La URL de la app es pública (es la pantalla de entrada). Lo que protege es la
   contraseña de cada quien: que no se compartan cuentas.
@@ -614,7 +630,7 @@ Un cambio que es solo de la página no necesita tocar ninguno de los tres.
 opencv-python-headless para la del código QR; sin ellos esas pruebas se saltan):
 
 ```bash
-npm test               # 125 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
+npm test               # 135 pruebas: seguridad, dos pasos, contraseñas, candado y caché, permisos, consecutivos, lote, avisos, respaldos, plantilla, informes, QR, publicar, empaquetar, Excel…
 npm run e2e            # recorrido en Chromium de lo nuevo (con la CSP de Vercel); capturas en capturas/<versión>/
 npm run empaquetar     # .zip del código sin base/, capturas/ ni credenciales, junto a la carpeta del proyecto
 npm run local          # página + servidor en http://localhost:4321 (con la base migrada si está; si no, vacía)

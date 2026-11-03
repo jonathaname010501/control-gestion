@@ -150,7 +150,7 @@
       } else if (ev.key === 'Escape') { ev.stopPropagation(); cerrarLista(); }
     });
     pintarEstado();
-    return { el: campo(etiqueta, h('div', { class: 'combo' }, input, lista), { ancho: o.ancho }), estado: estado, valor: function () { return sel; }, input: input,
+    return { el: campo(etiqueta, h('div', { class: 'combo' }, input, lista), { ancho: o.ancho, req: o.req }), estado: estado, valor: function () { return sel; }, input: input,
       montarEstado: function () { input.parentNode.parentNode.appendChild(estado); } };
   }
 
@@ -241,13 +241,22 @@
         if (p) { pre[par[0]] = p.id; pre[par[1]] = p.nombre + (p.cargo ? '\n' + p.cargo : ''); }
       });
     }
+    // 1.10.0 · Datos obligatorios por libreta: los MISMOS que pide el servidor (OBLIGATORIOS en Servidor.gs), que es quien manda.
+    // El asunto y la fecha se piden en todas. Al editar un registro viejo que ya estaba incompleto no se exige lo que ya estaba
+    // vacío (solo no se puede vaciar lo que tenía). Un número apartado que se completa se llena todo.
+    var OBLIG = { OFS: ['dirigido', 'firma', 'elaboro', 'carpeta'] };
+    function exige(k) {
+      if ((OBLIG[t] || []).indexOf(k) < 0) return false;
+      if (nuevo || completar) return true;
+      return !!String(base[k === 'dirigido' ? 'dirigido_a' : k] || '').trim();
+    }
     var rejilla = h('div', { class: 'rejilla' });
     var combos = {};
     def.campos.forEach(function (c) {
       var k = c[0], et = c[1];
       if (k === 'dirigido' || k === 'firma') {
         var idk = k === 'dirigido' ? 'dirigido_id' : 'firma_id', txk = k === 'dirigido' ? 'dirigido_a' : 'firma';
-        var cb = comboPersona(et, { id: ini(idk, ''), texto: ini(txk, '') }, { ancho: false });
+        var cb = comboPersona(et, { id: ini(idk, ''), texto: ini(txk, '') }, { ancho: false, req: exige(k) });
         combos[k] = cb; rejilla.appendChild(cb.el); cb.montarEstado();
       } else if (k === 'asunto' || k === 'observaciones') {
         ctrl[k] = h('textarea', { class: 'entrada', rows: k === 'asunto' ? 3 : 3, maxlength: k === 'asunto' ? 3000 : 6000, value: ini(k, '') });
@@ -258,14 +267,15 @@
         rejilla.appendChild(campo(et, ctrl[k], { req: k === 'fecha' }));
       } else if (k === 'acuse') {
         ctrl[k] = h('input', { type: 'checkbox', checked: ini(k, 'NO') === 'SI' });
-        rejilla.appendChild(h('div', { class: 'campo' }, h('span', { class: 'campo__et' }, et), h('label', { class: 'casilla' }, ctrl[k], t === 'OFE' ? 'Se tiene el original' : 'Ya se tiene el acuse')));
+        rejilla.appendChild(h('div', { class: 'campo' }, h('span', { class: 'campo__et' }, et), h('label', { class: 'casilla' }, ctrl[k], t === 'OFE' ? 'Se tiene el original' : 'Ya se tiene el acuse'),
+          t === 'OFS' ? h('div', { class: 'campo__ayuda' }, 'Se marca sola al subir el oficio escaneado.') : null));
       } else if (k === 'elaboro') {
         var lista = h('datalist', { id: 'dl-elaboro' }, (E.ini.sugerenciasElaboro || []).map(function (s) { return h('option', { value: s }); }));
         ctrl[k] = h('input', { class: 'entrada', list: 'dl-elaboro', maxlength: 120, value: ini(k, '') });
-        rejilla.appendChild(h('div', null, campo(et, ctrl[k], { ayuda: 'Elige de la lista para que se escriba siempre igual.' }), lista));
+        rejilla.appendChild(h('div', null, campo(et, ctrl[k], { ayuda: 'Elige de la lista para que se escriba siempre igual.', req: exige(k) }), lista));
       } else {
         ctrl[k] = h('input', { class: 'entrada', maxlength: k === 'carpeta' ? 40 : k === 'area' ? 400 : 150, value: ini(k, '') });
-        rejilla.appendChild(campo(et, ctrl[k], { ancho: k === 'area' }));
+        rejilla.appendChild(campo(et, ctrl[k], { ancho: k === 'area', req: exige(k) }));
       }
     });
 
@@ -350,12 +360,13 @@
         marcarAtendido ? h('label', { class: 'casilla ancho' }, marcarAtendido, 'Al guardar, marcar el original como «Atendido»') : null));
 
     // Archivos (solo al dar de alta; después se manejan desde el detalle)
-    var fDoc = selectorArchivo('Documento escaneado');
-    var fAcu = selectorArchivo(t === 'OFE' ? 'Oficio original / acuse' : 'Acuse');
+    // Oficios salientes (1.10.0): un solo escaneo, que ya lleva el acuse; al subirlo, el servidor marca la casilla «Acuse».
+    var fDoc = selectorArchivo(t === 'OFS' ? 'Oficio escaneado (con acuse)' : 'Documento escaneado');
+    var fAcu = t === 'OFS' ? null : selectorArchivo(t === 'OFE' ? 'Oficio original / acuse' : 'Acuse');
     var conArchivos = nuevo || completar;
     var archivos = conArchivos ? h('fieldset', { class: 'grupo' }, h('legend', null, 'Archivos (opcional)'),
-      h('div', { class: 'rejilla' }, fDoc.el, fAcu.el)) : null;
-    var notaArchivos = varios ? h('div', { class: 'alerta alerta--info oculto' }, 'Con varios destinatarios, los escaneos y acuses se suben después en cada oficio (desde su detalle).') : null;
+      h('div', { class: 'rejilla' }, fDoc.el, fAcu ? fAcu.el : null)) : null;
+    var notaArchivos = varios ? h('div', { class: 'alerta alerta--info oculto' }, 'Con varios destinatarios, el oficio escaneado se sube después en cada oficio (desde su detalle).') : null;
 
     var previo = null;
     if (def.numeroAuto && nuevo) {
@@ -397,10 +408,28 @@
     }
     var original = JSON.stringify(datos());
 
+    /** Lo obligatorio que falta, en el orden del formulario (asunto y fecha en todas las libretas; lo demás, según OBLIG). */
+    function faltantes(d) {
+      var nombres = [], foco = null;
+      def.campos.forEach(function (c) {
+        var k = c[0];
+        if (k === 'dirigido' && modoVarios) return;   // con varios destinatarios se elige la lista, no una persona
+        if (!(k === 'asunto' || k === 'fecha' || exige(k))) return;
+        var valor = k === 'dirigido' ? d.dirigido_a : k === 'firma' ? d.firma : d[k];
+        if (String(valor || '').trim()) return;
+        nombres.push(c[1]);
+        if (!foco) foco = combos[k] ? combos[k].input : ctrl[k];
+      });
+      return { nombres: nombres, foco: foco };
+    }
+    function avisarFalta(f) {
+      error(f.nombres.length === 1 ? 'Falta: ' + f.nombres[0] + '.' : 'Faltan datos obligatorios: ' + f.nombres.join(', ') + '.', f.foco);
+    }
+
     function enviar(confirmarDuplicado) {
       var d = datos();
-      if (!String(d.asunto || '').trim()) { vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, 'Falta el asunto.')); ctrl.asunto.focus(); return; }
-      if (!d.fecha) { vaciar(msg).appendChild(h('div', { class: 'alerta alerta--error' }, 'Falta la fecha.')); ctrl.fecha.focus(); return; }
+      var falta = faltantes(d);
+      if (falta.nombres.length) return avisarFalta(falta);
       if (confirmarDuplicado) d.confirmarDuplicado = true;
       boton.disabled = true; boton.textContent = 'Guardando…';
       if (botonOtro) botonOtro.disabled = true;
@@ -409,7 +438,7 @@
         var anotar = function (x) { if (x && x.registro) ultimo = x; };   // la última respuesta trae el registro y su panel al día
         var subidas = Promise.resolve();
         if (conArchivos && fDoc.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'oficio', fDoc.archivo()).then(anotar); });
-        if (conArchivos && fAcu.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'acuse', fAcu.archivo()).then(anotar); });
+        if (conArchivos && fAcu && fAcu.archivo()) subidas = subidas.then(function () { return subirArchivo(r, 'acuse', fAcu.archivo()).then(anotar); });
         return subidas.catch(function (e) { aviso('El registro se guardó, pero el archivo no: ' + e.message, 'error'); }).then(function () {
           v.antesDeCerrar = null; v.cerrar();
           if (res.sinCambios) aviso('No había cambios que guardar.');
@@ -450,8 +479,8 @@
       var elegidos = varios.elegidos();
       var d = datos();
       if (!elegidos.length) return error('Elige al menos un destinatario.', varios.input);
-      if (!String(d.asunto || '').trim()) return error('Falta el asunto.', ctrl.asunto);
-      if (!d.fecha) return error('Falta la fecha.', ctrl.fecha);
+      var falta = faltantes(d);
+      if (falta.nombres.length) return avisarFalta(falta);
       delete d.dirigido_id; delete d.dirigido_a; delete d.relacionado_id; delete d.marcarAtendido;
       d.destinatarios = elegidos.map(function (p) { return { dirigido_id: p.id, dirigido_a: p.nombre + (p.cargo ? '\n' + p.cargo : '') }; });
       vaciar(msg);
@@ -503,7 +532,7 @@
       cuerpo: [msg, avisoArriba, interruptorVarios, previo, rejilla, segui, archivos, notaArchivos],
       pie: [h('button', { class: 'btn', onclick: function () { v.intentarCerrar(); } }, 'Cancelar'), botonOtro, boton],
       antesDeCerrar: function () {
-        if (JSON.stringify(datos()) === original && !fDoc.archivo() && !fAcu.archivo() && !(varios && varios.elegidos().length)) return true;
+        if (JSON.stringify(datos()) === original && !fDoc.archivo() && !(fAcu && fAcu.archivo()) && !(varios && varios.elegidos().length)) return true;
         return confirmar('Hay cambios sin guardar. ¿Salir sin guardar?', { si: 'Salir sin guardar', no: 'Seguir editando', peligro: true });
       }
     });

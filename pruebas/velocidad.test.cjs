@@ -6,7 +6,7 @@ const { assert, preparar, alta, nuevoOficio, testBase, PDF } = require("./comun.
 testBase("exportación: solo administradores, por libreta y de fecha a fecha", () => {
   const e = preparar();
   const cap = alta(e, "beto", "captura", "*");
-  const con = alta(e, "carla", "consulta", ["OFS", "OFE"]);
+  const con = alta(e, "carla", "captura", ["OFS", "OFE"]);
   for (const t of [cap, con]) {
     assert.equal(e.api(t, "exportar", { tipo: "TODOS", desde: "2026-01-01", hasta: "2026-12-31" }).codigo, "PERMISO");
     assert.equal(e.api(t, "exportar", { tipo: "OFS", anio: 2026 }).codigo, "PERMISO", "tampoco con la forma anterior (por año)");
@@ -81,7 +81,7 @@ testBase("velocidad: entrar trae el portal y guardar trae el detalle (una vuelta
   assert.deepEqual(Object.keys(ent.inicio).sort(), Object.keys(ini).sort());
   assert.deepEqual(ent.inicio.acciones, ini.acciones, "las mismas acciones (Informes, Exportación…)");
   // con contraseña temporal no trae nada más
-  const u = e.api(e.admin, "guardarUsuario", { nuevo: true, usuario: "nuevo.u", nombre: "Nuevo", rol: "consulta", tipos: ["OFE"] }).datos;
+  const u = e.api(e.admin, "guardarUsuario", { nuevo: true, usuario: "nuevo.u", nombre: "Nuevo", rol: "captura", tipos: ["OFE"] }).datos;
   const temp = e.api(null, "entrar", { usuario: "nuevo.u", clave: u.temporal }).datos;
   assert.equal(temp.debe_cambiar, true);
   assert.equal(temp.inicio, undefined);
@@ -115,7 +115,7 @@ testBase("velocidad: entrar trae el portal y guardar trae el detalle (una vuelta
 
 testBase("velocidad: la precarga de listas respeta las libretas de cada quien", () => {
   const e = preparar();
-  const con = alta(e, "carla", "consulta", ["OFE", "CIR"]);
+  const con = alta(e, "carla", "captura", ["OFE", "CIR"]);
   const p = e.api(con, "listarTodo").datos;
   assert.deepEqual(Object.keys(p.listas).sort(), ["CIR", "OFE"]);
   assert.deepEqual(p.listas.OFE, e.api(con, "listar", { tipo: "OFE", anio: p.anio }).datos);

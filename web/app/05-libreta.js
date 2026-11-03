@@ -12,6 +12,7 @@
       [['', 'Todos los estatus'], ['(activos)', 'Por atender (pendiente o en trámite)'], ['(vencidos)', 'Vencidos'], ['(mes)', 'De este mes'], ['(sin)', 'Sin estatus']]
         .concat(tiene('misAsuntos') ? [['(mios)', 'Turnados a mí']] : [])
         .concat(def.numeroAuto ? [['(completar)', 'Por completar (números apartados)']] : [])
+        .concat(t === 'OFS' ? [['(sinarchivo)', 'Sin archivo adjunto (ni escaneo ni acuse)']] : [])
         .concat(ini.estatus.map(function (s) { return [s, s]; })).map(function (o) {
           return h('option', { value: o[0], selected: o[0] === E.filtros.estatus }, o[1]);
         }));
@@ -62,6 +63,8 @@
   /** «Sin acuse» (u «original») cuenta desde la fecha de corte de Configuración, si hay. */
   function corteAcuse() { return (E.ini && E.ini.config && E.ini.config.acuse_desde) || ''; }
   function sinAcuse(r) { return r.acuse !== 'SI' && r.estatus !== 'Cancelado' && (!corteAcuse() || String(r.fecha_recepcion || r.fecha || '') >= corteAcuse()); }
+  /** Oficio saliente sin NINGÚN escaneo (ni el documento ni un acuse subido aparte). No cuenta cancelados ni números apartados; respeta la misma fecha de corte que «sin acuse». */
+  function sinArchivo(r) { return !r.tiene_archivo && !r.tiene_acuse_archivo && r.estatus !== 'Cancelado' && !porCompletar(r) && (!corteAcuse() || String(r.fecha || '') >= corteAcuse()); }
 
   /** Indicadores de la libreta (del año que se está viendo). Cada uno filtra la lista. */
   function pintarIndicadores() {
@@ -76,6 +79,10 @@
     ];
     if (E.tipo === 'OFS' || tieneCampo(E.tipo, 'acuse')) {
       datos.push([E.tipo === 'OFE' ? 'Sin original' : 'Sin acuse', n(sinAcuse), function () { aplicar('(sinacuse)', ''); }, E.filtros.estatus === '(sinacuse)',
+        corteAcuse() ? 'Desde el ' + fechaCorta(corteAcuse()) + ' (Configuración)' : null]);
+    }
+    if (E.tipo === 'OFS') {
+      datos.push(['Sin archivo', n(sinArchivo), function () { aplicar('(sinarchivo)', ''); }, E.filtros.estatus === '(sinarchivo)',
         corteAcuse() ? 'Desde el ' + fechaCorta(corteAcuse()) + ' (Configuración)' : null]);
     }
     datos.push(['De este mes', n(esDelMes), function () { aplicar('(mes)', ''); }, E.filtros.estatus === '(mes)']);
@@ -171,6 +178,7 @@
       if (f.estatus === '(mios)' && !esMio(r)) return false;
       if (f.estatus === '(sinacuse)' && !sinAcuse(r)) return false;
       if (f.estatus === '(completar)' && !porCompletar(r)) return false;
+      if (f.estatus === '(sinarchivo)' && !sinArchivo(r)) return false;
       if (f.estatus && f.estatus.charAt(0) !== '(' && r.estatus !== f.estatus) return false;
       if (f.acuse && r.acuse !== f.acuse) return false;
       for (var i = 0; i < palabras.length; i++) if (r._b.indexOf(palabras[i]) < 0) return false;

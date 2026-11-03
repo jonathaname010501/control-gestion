@@ -20,11 +20,11 @@
   // esta página. Súbela solo cuando la página use algo nuevo del servidor: si el
   // publicado es más viejo, a los administradores les sale el aviso en el portal.
   // Un cambio que es solo de la página NO necesita tocar este número.
-  var SERVIDOR_MINIMO = '1.8.0';
+  var SERVIDOR_MINIMO = '1.10.0';
 
   // Las novedades de «Ayuda → Qué hay de nuevo» (puntosGuia, en 04-portal.js).
   // Cámbialo solo cuando escribas novedades nuevas: le salen una vez a cada quien.
-  var NOVEDADES = '1.8.0';
+  var NOVEDADES = '1.10.0';
 
   /* ───────────────────────── Utilidades ───────────────────────── */
   var ICONOS = {
@@ -166,7 +166,7 @@
   function tipoDef(t) { return E.ini.todosTipos[t]; }
   function tieneCampo(t, c) { return tipoDef(t).campos.some(function (x) { return x[0] === c; }); }
   function etiquetaCampo(t, c, def) { var x = tipoDef(t).campos.filter(function (y) { return y[0] === c; })[0]; return x ? x[1] : def; }
-  function puedeCapturar(t) { return E.ini && E.ini.yo.rol !== 'consulta' && (!t || E.ini.orden.indexOf(t) >= 0); }
+  function puedeCapturar(t) { return !!E.ini && (!t || E.ini.orden.indexOf(t) >= 0); }   // desde 1.10.0 ya no hay rol de solo lectura
   function esAdmin() { return E.ini && E.ini.yo.rol === 'admin'; }
   /** ¿El servidor publicado ya tiene esta acción (y este usuario puede usarla)?
    *  Con un servidor de versión anterior, lo nuevo simplemente no aparece. */

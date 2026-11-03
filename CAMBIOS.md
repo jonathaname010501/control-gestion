@@ -3,6 +3,75 @@
 Cada versión dice qué hay que hacer al publicarla. Si usas `npm run publicar`, el
 comando hace casi todo y te avisa lo que falta (ver INSTALAR.md, Parte C).
 
+## 1.10.0 · Roles más claros (sin «Consulta»), un solo escaneo en salientes, «Sin archivo» y datos obligatorios
+
+**Al publicar: no hay columnas nuevas → NO hace falta correr `instalar()`.** Reemplaza el
+código y publica la **Nueva versión** en la misma implementación. Cambian 3 archivos de
+Apps Script (`Servidor.gs`, `Seguridad.gs` y `Avisos.gs`) y 6 de `web/app/`
+(`01-nucleo.js`, `04-portal.js`, `05-libreta.js`, `06-detalle.js`, `07-formulario.js` y
+`09-admin.js`). La página pide el servidor 1.10.0: publica **primero el servidor**. Si la
+página sale antes no se rompe nada; solo falta, mientras tanto, que el acuse se marque solo
+y el aviso «sin archivo» de la tarjeta.
+
+**Roles**
+
+- **Se quita el rol «Consulta».** Quedan **Administrador** y **Captura**.
+- **Informes y Directorio, solo Administrador** (tarjeta, pantalla y servidor). La casilla
+  «Puede ver Informes» desaparece de Usuarios; la columna `informes` de la hoja *Usuarios*
+  se queda sin usarse (no se borra nada).
+- Captura sigue eligiendo personas en el formulario y puede agregar una nueva desde ahí
+  («+ Agregar … al directorio»); lo que ya no ve es la pantalla del Directorio, ni Informes,
+  Usuarios, Bitácora, Exportación o Configuración (estas cuatro ya eran solo del administrador).
+- **Quien todavía tenga «Consulta» en la hoja** no entra: su sesión abierta se cierra, al
+  entrar dice que ya no tiene un rol asignado, no recibe turnos ni el resumen diario, y en
+  **Usuarios** aparece como «Sin rol · elige uno». El administrador abre **Editar**, elige
+  Captura (o Administrador) y guarda. **No se les cambia solo a Captura** para que nadie
+  gane permisos sin que una persona lo decida.
+- Las notas de seguimiento las puede agregar cualquiera con acceso a la libreta (antes,
+  Consulta solo en lo que le turnaron).
+
+**Oficios salientes**
+
+- **Un solo escaneo: «Oficio escaneado (con acuse)».** Como el escaneo ya lleva el acuse,
+  se quitó el segundo botón (en el detalle y en el formulario). **Al subirlo, la casilla
+  «Acuse» se marca sola** (queda en la Bitácora como «acuse marcado»). Si lo subieron antes
+  de tener el acuse, basta quitar la palomita al editar. Los oficios que ya tenían un acuse
+  subido aparte lo conservan: se ve como «Acuse (archivo anterior)», para abrirlo o quitarlo,
+  y cuenta como archivo. En las demás libretas todo sigue igual.
+- **Filtro «Sin archivo»**: los oficios salientes que no tienen ningún escaneo (ni el
+  documento ni un acuse subido aparte). Está en tres lugares: un cuadro junto a «Sin acuse»,
+  una opción en la lista de filtros y un aviso «N sin archivo» en la tarjeta del portal. No
+  cuenta cancelados ni números apartados sin completar, y **respeta la fecha de
+  Configuración** que antes se llamaba «Sin acuse cuenta desde» (ahora «Sin acuse» y «Sin
+  archivo» cuentan desde), para que lo migrado del Excel no infle el número. Se distingue de
+  «Sin acuse»: ese mira la casilla; este mira si hay escaneo.
+- **Datos obligatorios**: Dirigido a, Asunto, Fecha, Firma, Revisó / Elaboró y No. de
+  carpeta (Observaciones no). El formulario los marca con asterisco y avisa **todos los que
+  faltan juntos**. **El servidor es quien manda**: aunque alguien manipule el navegador, no se
+  guarda; aplica también a Duplicar, a Varios destinatarios (ya en la vista previa) y a
+  completar un número apartado. «Apartar número» sigue sin pedir nada (reserva el número);
+  los datos se piden al completarlo. Un registro **viejo que ya estaba incompleto** (los
+  migrados) se puede seguir editando sin llenar todo, pero no se puede vaciar un dato que ya
+  tenía. Los cambios en lote («Atendido», acuse, turno) no pasan por esta regla. Las demás
+  libretas siguen pidiendo solo asunto y fecha.
+
+**Para quien mantiene el código**
+
+- `ROLES` ya no trae `consulta`; `rolValido_(u)` cierra la entrada, la sesión, los turnos y los
+  avisos de quien conserve un rol retirado (código `SIN_ROL`). `guardarUsuario` rechaza un rol
+  vacío o desconocido; la pantalla de Usuarios no deja a esa persona «preseleccionada» como
+  Administrador.
+- `informes` y `directorio` en `ACCIONES_` son `rol: 'admin'`; la página los cierra también en
+  la ruta. El formulario no depende de la acción `directorio`: usa la lista que ya viene en
+  «inicio».
+- `OBLIGATORIOS` (Servidor.gs) y `OBLIG` (07-formulario.js) deben decir lo mismo: una prueba
+  lo revisa. `exigirObligatorios_(o, tipo, previo)` es la regla; `previo` es el registro
+  guardado al editar.
+- `cuentaSinArchivo_` y `indicadores_` traen `sinArchivo` por libreta. `SERVIDOR_MINIMO` y
+  `NOVEDADES` pasan a 1.10.0.
+- Pruebas: 135 (101 corren sin `base/base.json`, 34 con ella). Nuevo `pruebas/v1100.test.cjs`.
+  La plantilla `nuevoOficio` de las pruebas ahora trae la carpeta, porque los salientes la piden.
+
 ## 1.9.0 · Más fácil de mantener: la página vive solo en Vercel
 
 Para la gente no cambia nada: mismas pantallas, misma dirección, mismos datos. Lo que

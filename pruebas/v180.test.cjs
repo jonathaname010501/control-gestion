@@ -36,15 +36,12 @@ test("apartar: números seguidos con su número oficial, sin asunto, «Pendiente
 test("apartar: solo oficios salientes, de 1 a 20, quien captura y con acceso a la libreta", () => {
   const e = preparar({ conBase: false });
   const cap = alta(e, "beto", "captura", ["OFE"]);
-  const con = alta(e, "carla", "consulta", "*");
   assert.equal(e.api(e.admin, "apartar", { tipo: "OFE" }).codigo, "DATOS");
   assert.equal(e.api(e.admin, "apartar", { tipo: "OFS", cantidad: 21 }).codigo, "DATOS");
   assert.equal(e.api(e.admin, "apartar", { tipo: "OFS", cantidad: 0 }).codigo, "DATOS");
   assert.equal(e.api(e.admin, "apartar", { tipo: "OFS", nota: "x".repeat(301) }).codigo, "DATOS");
   assert.equal(e.api(cap, "apartar", { tipo: "OFS" }).codigo, "PERMISO", "sin acceso a la libreta");
-  assert.equal(e.api(con, "apartar", { tipo: "OFS" }).codigo, "PERMISO", "consulta no aparta");
   assert.ok(e.api(e.admin, "inicio").datos.acciones.includes("apartar"));
-  assert.ok(!e.api(con, "inicio").datos.acciones.includes("apartar"));
   assert.equal(e.api(e.admin, "apartar", { tipo: "OFS" }).datos.cuantos, 1, "por omisión, uno");
 });
 
@@ -94,14 +91,14 @@ test("notas: quedan en la Bitácora con autor; el detalle las trae aparte con el
   assert.equal(f.notas[0].texto, "=HYPERLINK(\"x\")");
 });
 
-test("notas: consulta solo en lo que le turnaron; nada en libretas ajenas, cancelados ni textos vacíos o enormes", () => {
+test("notas: cualquiera con acceso a la libreta; nada en libretas ajenas, cancelados ni textos vacíos o enormes", () => {
   const e = preparar({ conBase: false });
   const cap = alta(e, "beto", "captura", ["OFE"]);
-  const con = alta(e, "carla", "consulta", ["OFE"]);
+  const con = alta(e, "carla", "captura", ["OFE"]);
   const ajeno = alta(e, "dani", "captura", ["OFS"]);
   const a = e.api(cap, "guardar", { tipo: "OFE", asunto: "Uno", fecha: "2026-10-01" }).datos.registro;
   const b = e.api(cap, "guardar", { tipo: "OFE", asunto: "Dos", fecha: "2026-10-01", turnado_usuario: "carla" }).datos.registro;
-  assert.equal(e.api(con, "agregarNota", { id: a.id, texto: "No es mío" }).codigo, "PERMISO");
+  assert.equal(e.api(con, "agregarNota", { id: a.id, texto: "Lo vi yo también" }).ok, true, "quien tiene acceso a la libreta puede anotar aunque no se lo hayan turnado");
   assert.equal(e.api(con, "agregarNota", { id: b.id, texto: "Ya lo estoy viendo" }).ok, true);
   assert.equal(e.api(ajeno, "agregarNota", { id: a.id, texto: "Hola" }).codigo, "PERMISO");
   assert.equal(e.api(cap, "agregarNota", { id: a.id, texto: " " }).codigo, "DATOS");
@@ -173,8 +170,6 @@ test("deshacer: solo quien lo hizo, solo lo que nadie volvió a tocar, y vence a
   e.reloj.offset += 11 * 60 * 1000;
   assert.equal(e.api(cap, "deshacerLote", { clave: l2.deshacer }).codigo, "DATOS");
   assert.equal(e.api(cap, "deshacerLote", { clave: "../../algo" }).codigo, "DATOS");
-  const con = alta(e, "carla", "consulta", "*");
-  assert.equal(e.api(con, "deshacerLote", { clave: l2.deshacer }).codigo, "PERMISO");
 });
 
 /* ── Enlace directo (QR del volante) y datos para la página ──────── */
@@ -201,12 +196,12 @@ test("sin Vercel, la dirección para el QR es la /exec; las listas traen quién 
   assert.equal(lista[0].creado_por, "beto");
 });
 
-test("versión 1.9.0 del servidor; la página sigue funcionando con un servidor 1.8.0", () => {
+test("versión 1.10.0 del servidor; la página la pide como mínimo (acuse automático, Informes y Directorio solo para administradores)", () => {
   const e = preparar({ conBase: false });
-  assert.equal(e.api(e.admin, "inicio").datos.version, "1.9.0");
+  assert.equal(e.api(e.admin, "inicio").datos.version, "1.10.0");
   const app = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "web", "app", "01-nucleo.js"), "utf8");
-  assert.match(app, /var SERVIDOR_MINIMO = '1\.8\.0';/, "1.9.0 no cambió nada que use la página");
-  assert.match(app, /var NOVEDADES = '1\.8\.0';/, "no hay novedades nuevas para la gente: no vuelve a salir «Qué hay de nuevo»");
+  assert.match(app, /var SERVIDOR_MINIMO = '1\.10\.0';/, "la página depende del acuse automático y de los permisos nuevos");
+  assert.match(app, /var NOVEDADES = '1\.10\.0';/, "hay novedades nuevas: vuelve a salir «Qué hay de nuevo»");
 });
 
 testBase("con la base real: los números apartados en el minutario (411 a 415) cuentan como «por completar»", () => {
